@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -16,69 +17,145 @@ const (
 	GUILD_ID       = "1157158258621042799"
 )
 
-var ready = false
+type wageCage struct {
+	channelStruct *discordgo.Channel
+	users         []*discordgo.User
+	role          *discordgo.GuildRole
+	number        int
+	delete        bool
+}
 
 func main() {
 	token := os.Getenv("DISCORD_API_TOKEN")
+
 	dg, err := discordgo.New("Bot " + token)
 	if err != nil {
-		log.Fatal("unable to initialize a new discordgo client")
-	}
-	defer dg.Close()
-
-	if err != nil {
-		log.Fatal("unable to get voice state")
+		log.Fatal("unable to initialize a new discordgo client: " + err.Error())
 	}
 
-	channels, err := dg.GuildChannels(GUILD_ID)
-	if err != nil {
-		log.Fatal("unable to get channels")
-	}
-	wagecages := []*discordgo.Channel{}
-	for _, c := range channels {
-		if c.Type == discordgo.ChannelTypeGuildVoice {
-			if strings.HasPrefix(c.Name, "WAGE CAGE") {
-				wagecages = append(wagecages, c)
-			}
-		}
-	}
+	dg.StateEnabled = true
+	dg.State.TrackChannels = true
+	dg.State.TrackMembers = true
+	dg.State.TrackRoles = true
+	dg.State.TrackVoice = true
+	dg.State.TrackPresences = true
 
-	if len(wagecages) == 0 {
-		fmt.Println("line 41")
-		newchan, err := createWagecage(dg, 0)
-		if err != nil {
-			log.Fatal("unable to create first wage cage")
-		}
-		wagecages = append(wagecages, newchan)
-	}
-	dg.Identify.Intents = discordgo.IntentsGuildVoiceStates | discordgo.IntentsGuildMembers
-	dg.AddHandler(func (s *discordgo.Session, r *discordgo.Ready){
-		fmt.Println(r.Version)
-		fmt.Println(s.DataReady)
-		ready = true
+	readychan := make(chan struct{})
+	dg.AddHandler(func(_ *discordgo.Session, _ *discordgo.Ready) {
+		readychan <- struct{}{}
 	})
 
 	err = dg.Open()
 	if err != nil {
 		log.Fatalf("error opening ws connection: %s", err.Error())
 	}
-	for !ready{}
-	fmt.Println("pre-data-ready")
-	for !dg.DataReady {
-	}
-	fmt.Println("post-data-ready")
 	defer dg.Close()
-	fmt.Printf("tracking voice: %b", dg.State.TrackVoice)
-	Vstate, err := dg.State.VoiceState(GUILD_ID, "444210585605767183")
-	if err != nil{
-		log.Fatalf("something bad happened: %s", err.Error())
+
+	<-readychan
+
+	wagecages := make(map[string]*wageCage)
+	guild := dg.State.Guilds[0]
+	for _, c := range guild.Channels {
+		if c.Type == discordgo.ChannelTypeGuildVoice {
+			if strings.HasPrefix(c.Name, "WAGE CAGE") {
+				number, err := numberFromChannelName("WAGE CAGE", c.Name)
+				if err != nil {
+					log.Printf("Unable to get channel number from channel name %s", c.Name)
+				}
+				wagecages[c.ID] = &wageCage{
+					channelStruct: c,
+					users:         []*discordgo.User{},
+					number:        number,
+				}
+			}
+		}
 	}
-	fmt.Printf("lvcky voice state: %s", Vstate.ChannelID)
-	// if there's no one in them, delete the empties (and roles) save for the first one
-	// else for each populated wage cage
-	// give them a new wage cage admin role for their channel
-	// if all are filled up
+
+	for _, voice_state := range guild.VoiceStates {
+		user, err := dg.User(voice_state.UserID)
+		if err != nil {
+			fmt.Printf("error getting user voice state: %v", err)
+		}
+		targetCage, ok := wagecages[voice_state.ChannelID]
+		if !ok {
+			// ignore because they're not in a vc we care about
+			continue
+		}
+		targetCage.users = append(targetCage.users, user)
+	}
+
+	for _, wc := range wagecages {
+		// if there's no one in them, delete the empties (and roles) save for the first one
+		if len(wc.users) == 0 && wc.number != 0 {
+			wc.delete = true
+		}
+	}
+	// get the lowest numbered wage cage and don't delete it
+	var lowest *wageCage
+	for _, wc := range wagecages {
+		if len(wc.users) != 0 {
+			continue
+		}
+		if lowest == nil {
+			lowest = wc
+		} else {
+			if wc.number < lowest.number {
+				lowest = wc
+			}
+		}
+	}
+
+	if lowest != nil {
+		lowest.delete = false
+	}
+	// delete all marked for deletion
+	// todo: when deleting a channel, remove it from the list
+	for _, wc := range wagecages {
+		_, err := dg.ChannelDelete(wc.channelStruct.ID)
+		if err != nil {
+			log.Printf("unable to delete channel with id %s: %s\n", wc.channelStruct.ID, err.Error())
+		}
+		err = dg.GuildRoleDelete(guild.ID, wc.role.Role.ID)
+		if err != nil {
+			log.Printf("unable to delete role with id %s: %s\n", wc.channelStruct.ID, err.Error())
+		}
+	}
+
+	// if all are filled up (also figure out the lowest unused number)
+	createNew := true
+	for _, wc := range wagecages {
+		if len(wc.users) == 0 {
+			createNew = false
+			break
+		}
+	}
 	// create another wage cage
+	if createNew {
+		channel, err := dg.GuildChannelCreate(guild.ID, fmt.Sprintf("WAGE CAGE #%d", 11), discordgo.ChannelTypeGuildVoice)
+		if err != nil {
+			log.Errorf("unable to create new channel: " + err.Error)
+		}
+		// create role as well (though this should probably be created immediately prior to giving it out
+		var color = 69
+		var hoist = false
+		var mentionable = false
+		var perms = int64(0)
+		role, err := dg.GuildRoleCreate(guild.ID, &discordgo.RoleParams{
+			Name:        fmt.Sprintf("WAGE CAGE KING %d", 11),
+			Color:       &color,
+			Hoist:       &hoist,
+			Permissions: &perms,
+			Mentionable: &mentionable,
+		})
+	}
+	// for each populated wage cage
+	// give them a new wage cage admin role for their channel
+	// if no one has the corresponding wage cage role, give someone in there the role
+}
+
+func numberFromChannelName(prefix string, fullname string) (int, error) {
+	numberMaybe := strings.Trim(fullname[:len(prefix)], " ")
+	return strconv.Atoi(numberMaybe)
 }
 
 func createWagecage(dg *discordgo.Session, id int) (*discordgo.Channel, error) {
