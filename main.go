@@ -41,9 +41,14 @@ func main() {
 	dg.State.TrackVoice = true
 	dg.State.TrackPresences = true
 
+	dg.Identify.Intents = discordgo.IntentsAll
+
 	readychan := make(chan struct{})
+
 	dg.AddHandler(func(_ *discordgo.Session, _ *discordgo.Ready) {
 		readychan <- struct{}{}
+	})
+	dg.AddHandler(func(_ *discordgo.Session, _ *discordgo.VoiceServerUpdate) {
 	})
 	err = dg.Open()
 	if err != nil {
@@ -52,8 +57,13 @@ func main() {
 	defer dg.Close()
 
 	<-readychan
-
 	guild := dg.State.Guilds[0]
+
+	err = dg.RequestGuildMembers(guild.ID, "", 0, "", true)
+	if err != nil {
+		fmt.Println("screw you" + err.Error())
+	}
+
 	// TODO: wait for an event showing this is working instead of sleeping
 	time.Sleep(1 * time.Second)
 
