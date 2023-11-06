@@ -20,8 +20,8 @@ const (
 
 type wageCage struct {
 	channelStruct *discordgo.Channel
-	role          *discordgo.GuildRole
-	users         []*discordgo.User
+	role          *discordgo.Role
+	users         []*discordgo.Member
 	number        int
 	delete        bool
 }
@@ -45,10 +45,6 @@ func main() {
 	dg.AddHandler(func(_ *discordgo.Session, _ *discordgo.Ready) {
 		readychan <- struct{}{}
 	})
-	dg.AddHandler(func(_ *discordgo.Session, _ *discordgo.Ready) {
-
-	})
-
 	err = dg.Open()
 	if err != nil {
 		log.Fatalf("error opening ws connection: %s", err.Error())
@@ -58,10 +54,13 @@ func main() {
 	<-readychan
 
 	guild := dg.State.Guilds[0]
+	// TODO: wait for an event showing this is working instead of sleeping
+	time.Sleep(1 * time.Second)
 
 	wagecages := make(map[string]*wageCage)
 
 	channelprefix := "WAGE CAGE #"
+	roleprefix := "WAGE CAGE KING "
 
 	for _, c := range guild.Channels {
 		if c.Type == discordgo.ChannelTypeGuildVoice {
@@ -70,24 +69,32 @@ func main() {
 				if err != nil {
 					log.Printf("Unable to get channel number from channel name %s: %s", c.Name, err.Error())
 				}
+				// check for corresponding role
+				var targetRole *discordgo.Role
+				for _, role := range guild.Roles {
+					rolenumber, err := numberFromChannelName(channelprefix, roleprefix)
+					if err != nil {
+						// probably not the role we're looking for
+						continue
+					} else if rolenumber == number {
+						targetRole = role
+						break
+					}
+				}
 				wagecages[c.ID] = &wageCage{
 					channelStruct: c,
-					users:         []*discordgo.User{},
+					users:         []*discordgo.Member{},
 					number:        number,
+					role:          targetRole,
 				}
 			}
 		}
 	}
 
-	for _, wc := range wagecages {
-		fmt.Println(wc.channelStruct.Name)
-	}
-
 	for _, voice_state := range guild.VoiceStates {
-		user, err := dg.User(voice_state.UserID)
-		if err != nil {
-			fmt.Printf("error getting user voice state: %v", err)
-		}
+		user := voice_state.Member
+		//TODO: this doesn't work. Fix this somehow. listening for userUpdate and MemberUpdate didn't seem to work
+		fmt.Println(user)
 		targetCage, ok := wagecages[voice_state.ChannelID]
 		if !ok {
 			// ignore because they're not in a vc we care about
@@ -117,27 +124,37 @@ func main() {
 				lowest = wc
 			}
 		}
+		wc.delete = true
 	}
+	/*
+		for _, wc := range wagecages {
+			fmt.Printf("channel %s marked for deletion", wc.channelStruct.Name)
+		}
+	*/
 
 	if lowest != nil {
 		lowest.delete = false
 	}
 
 	// delete all marked for deletion
-	// todo: when deleting a channel, remove it from the list
-
+	remainingWagecages := make(map[string]*wageCage)
 	for _, wc := range wagecages {
 		if wc.delete {
 			_, err := dg.ChannelDelete(wc.channelStruct.ID)
 			if err != nil {
 				log.Printf("unable to delete channel with id %s: %s\n", wc.channelStruct.ID, err.Error())
 			}
-			err = dg.GuildRoleDelete(guild.ID, wc.role.Role.ID)
-			if err != nil {
-				log.Printf("unable to delete role with id %s: %s\n", wc.channelStruct.ID, err.Error())
+			if wc.role != nil {
+				err = dg.GuildRoleDelete(guild.ID, wc.role.ID)
+				if err != nil {
+					log.Printf("unable to delete role with id %s: %s\n", wc.channelStruct.ID, err.Error())
+				}
 			}
+		} else {
+			remainingWagecages[wc.channelStruct.ID] = wc
 		}
 	}
+	wagecages = remainingWagecages
 
 	// if all are filled up (also figure out the lowest unused number)
 	createNew := true
@@ -152,13 +169,29 @@ func main() {
 	// create another wage cage
 	// create role as well (though this should probably be created immediately prior to giving it out
 	if createNew {
-		var newNumber = 1
+		// select the lowest unused number here
+		arr := make([]bool, len(wagecages))
+		for _, wc := range wagecages {
+			if wc.number >= len(wagecages) {
+				continue
+			} else {
+				arr[wc.number] = true
+			}
+		}
+
+		var newNumber = len(wagecages)
+		for i, exists := range arr {
+			if !exists {
+				newNumber = i
+				break
+			}
+		}
 		var color = 69
 		var hoist = false
 		var mentionable = false
 		var perms = int64(0)
 		role, err := dg.GuildRoleCreate(guild.ID, &discordgo.RoleParams{
-			Name:        fmt.Sprintf("WAGE CAGE KING %d", newNumber),
+			Name:        roleprefix + strconv.Itoa(newNumber),
 			Color:       &color,
 			Hoist:       &hoist,
 			Permissions: &perms,
@@ -167,6 +200,7 @@ func main() {
 		if err != nil {
 			log.Printf("unable to create role: %s", err.Error())
 		}
+		//todo: set up something to listn for the creation to be confirmed and act on it instead of sleeping
 		time.Sleep(time.Second * 1)
 		channel, err := dg.GuildChannelCreate(guild.ID, channelprefix+strconv.Itoa(newNumber), discordgo.ChannelTypeGuildVoice)
 		if err != nil {
@@ -181,11 +215,37 @@ func main() {
 		if err != nil {
 			log.Printf("unable to set perms on new channel: %s", err.Error())
 		}
-
+		wagecages[channel.ID] = &wageCage{
+			channelStruct: channel,
+			role:          role,
+			users:         []*discordgo.Member{},
+			number:        newNumber,
+			delete:        false,
+		}
 	}
-	// for each populated wage cage
-	// give them a new wage cage admin role for their channel
-	// if no one has the corresponding wage cage role, give someone in there the role
+
+	for _, wc := range wagecages {
+		userfound := false
+	searchForUserWithRole:
+		for _, user := range wc.users {
+			fmt.Printf("%#v", user)
+			for _, role := range user.Roles {
+				if role == wc.role.ID {
+					userfound = true
+					break searchForUserWithRole
+				}
+			}
+		}
+		if !userfound && len(wc.users) > 0 {
+			err := dg.GuildMemberRoleAdd(guild.ID, wc.users[0].User.ID, wc.role.ID)
+			if err != nil {
+				log.Printf("unable to add role to guild member: %s", err.Error())
+			}
+			//give user[0] the role
+		}
+	}
+	// delete the roles if the user isn't in the wagecage for their role
+
 }
 
 func numberFromChannelName(prefix string, fullname string) (int, error) {
