@@ -21,7 +21,7 @@ const (
 type wageCage struct {
 	channelStruct *discordgo.Channel
 	role          *discordgo.Role
-	users         []*discordgo.Member
+	users         []string
 	number        int
 	delete        bool
 }
@@ -44,11 +44,22 @@ func main() {
 	dg.Identify.Intents = discordgo.IntentsAll
 
 	readychan := make(chan struct{})
+	voiceReady := make(chan *discordgo.GuildCreate)
 
 	dg.AddHandler(func(_ *discordgo.Session, _ *discordgo.Ready) {
 		readychan <- struct{}{}
 	})
-	dg.AddHandler(func(_ *discordgo.Session, _ *discordgo.VoiceServerUpdate) {
+
+	dg.AddHandler(func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		voiceReady <- gc
+	})
+	guildMembers := make(chan *discordgo.GuildMembersChunk)
+	dg.AddHandler(func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
+		fmt.Println("guildmembersChunk")
+		guildMembers <- gm
 	})
 	err = dg.Open()
 	if err != nil {
@@ -57,7 +68,7 @@ func main() {
 	defer dg.Close()
 
 	<-readychan
-	guild := dg.State.Guilds[0]
+	guild := <-voiceReady
 
 	err = dg.RequestGuildMembers(guild.ID, "", 0, "", true)
 	if err != nil {
@@ -82,7 +93,7 @@ func main() {
 				// check for corresponding role
 				var targetRole *discordgo.Role
 				for _, role := range guild.Roles {
-					rolenumber, err := numberFromChannelName(channelprefix, roleprefix)
+					rolenumber, err := numberFromChannelName(roleprefix, role.Name)
 					if err != nil {
 						// probably not the role we're looking for
 						continue
@@ -90,10 +101,11 @@ func main() {
 						targetRole = role
 						break
 					}
+					fmt.Println(rolenumber)
 				}
 				wagecages[c.ID] = &wageCage{
 					channelStruct: c,
-					users:         []*discordgo.Member{},
+					users:         []string{},
 					number:        number,
 					role:          targetRole,
 				}
@@ -102,15 +114,12 @@ func main() {
 	}
 
 	for _, voice_state := range guild.VoiceStates {
-		user := voice_state.Member
-		//TODO: this doesn't work. Fix this somehow. listening for userUpdate and MemberUpdate didn't seem to work
-		fmt.Println(user)
 		targetCage, ok := wagecages[voice_state.ChannelID]
 		if !ok {
 			// ignore because they're not in a vc we care about
 			continue
 		}
-		targetCage.users = append(targetCage.users, user)
+		targetCage.users = append(targetCage.users, voice_state.UserID)
 	}
 
 	for _, wc := range wagecages {
@@ -228,18 +237,22 @@ func main() {
 		wagecages[channel.ID] = &wageCage{
 			channelStruct: channel,
 			role:          role,
-			users:         []*discordgo.Member{},
+			users:         []string{},
 			number:        newNumber,
 			delete:        false,
 		}
 	}
-
+	memberstore := <-guildMembers
 	for _, wc := range wagecages {
+		if wc.role == nil {
+			continue
+		}
+		fmt.Printf("wc %d, usercount %d, role %s\n", wc.number, len(wc.users), wc.role.Name)
 		userfound := false
 	searchForUserWithRole:
 		for _, user := range wc.users {
 			fmt.Printf("%#v", user)
-			for _, role := range user.Roles {
+			for _, role := range lookupUserRoles(memberstore, user) {
 				if role == wc.role.ID {
 					userfound = true
 					break searchForUserWithRole
@@ -247,18 +260,52 @@ func main() {
 			}
 		}
 		if !userfound && len(wc.users) > 0 {
-			err := dg.GuildMemberRoleAdd(guild.ID, wc.users[0].User.ID, wc.role.ID)
+			//give user[0] the role
+			err := dg.GuildMemberRoleAdd(guild.ID, wc.users[0], wc.role.ID)
 			if err != nil {
 				log.Printf("unable to add role to guild member: %s", err.Error())
 			}
-			//give user[0] the role
 		}
 	}
-	// delete the roles if the user isn't in the wagecage for their role
+
+	// remove the roles if the user isn't in the wagecage for their role
+	for _, m := range memberstore.Members {
+		for _, wc := range wagecages {
+			found := false
+			for _, user := range wc.users {
+				if m.User.ID == user {
+					found = true
+				}
+			}
+			if !found {
+				for _, r := range m.Roles {
+					if r == wc.role.ID {
+						err := dg.GuildMemberRoleRemove(GUILD_ID, m.User.ID, wc.role.ID)
+						if err != nil {
+							log.Println(err.Error())
+						}
+					}
+				}
+			}
+		}
+	}
 
 }
 
+// lookupUserRoles returns a slice of ids for roles a user has
+func lookupUserRoles(mc *discordgo.GuildMembersChunk, UserID string) []string {
+	for _, m := range mc.Members {
+		if UserID == m.User.ID {
+			return m.Roles
+		}
+	}
+	return []string{}
+}
+
 func numberFromChannelName(prefix string, fullname string) (int, error) {
+	if len(prefix) > len(fullname) {
+		return 0, fmt.Errorf("this aint it, cuz")
+	}
 	numberMaybe := strings.Trim(fullname[len(prefix):], " ")
 	return strconv.Atoi(numberMaybe)
 }
