@@ -11,7 +11,14 @@ type FocusRoom struct {
 }
 
 type Server struct {
+	Guild         *discordgo.Guild
 	ID            string
 	ChannelPrefix string
 	RolePrefix    string
+}
+
+type GlobalConfig struct {
+	Ready *discordgo.Ready
+	// global dg session object
+	DG *discordgo.Session
 }

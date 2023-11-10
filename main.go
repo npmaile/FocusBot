@@ -36,57 +36,18 @@ func main() {
 
 	token := os.Getenv("DISCORD_API_TOKEN")
 
+	dg, err := InitializeDG(token)
+	if err != nil {
+		log.Fatalf("unable to initialize discordgo client: %s", err.Error())
+	}
+
 	db, err := db.NewSqliteStore("./db")
 	if err != nil {
 		log.Fatalf("unable to start: %s", err.Error())
 	}
 
-	// global
-	dg, err := discordgo.New("Bot " + token)
-	if err != nil {
-		log.Fatal("unable to initialize a new discordgo client: " + err.Error())
-	}
-
-	dg.StateEnabled = true
-	dg.State.TrackChannels = true
-	dg.State.TrackMembers = true
-	dg.State.TrackRoles = true
-	dg.State.TrackVoice = true
-	dg.State.TrackPresences = true
-
-	dg.Identify.Intents = discordgo.IntentsAll
-
-	readychan := make(chan *discordgo.Ready)
-	dg.AddHandler(func(_ *discordgo.Session, r *discordgo.Ready) {
-		readychan <- r
-	})
-	guildCreateState := make(chan *discordgo.GuildCreate)
-	dg.AddHandler(func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-		guildCreateState <- gc
-	})
-
-	// per-server basis
-	guildMembers := make(chan *discordgo.GuildMembersChunk)
-	dg.AddHandler(func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
-		fmt.Println("guildmembersChunk")
-		guildMembers <- gm
-	})
-
-	// global
-	err = dg.Open()
-	if err != nil {
-		log.Fatalf("error opening ws connection: %s", err.Error())
-	}
-	defer dg.Close()
-
-	// global
-	readyState := <-readychan
-
 	var servers map[string]*models.Server
-	for _, g := range readyState.Guilds {
+	for _, g := range dg.Ready.Guilds {
 		go func() {
 			server, err := db.GetServerConfiguration(g.ID)
 			if err != nil {
@@ -94,15 +55,21 @@ func main() {
 				return
 			}
 			servers[g.ID] = &server
+			// set off the guild members as soon as possible
 			err = dg.RequestGuildMembers(g.ID, "", 0, "", true)
 			if err != nil {
 				log.Printf("error requesting guild members for server %s: %s", g.ID, err.Error())
+				// add the guild struct to the server once it comes in from the guildCreate channel
+
+				// add the users struct to the server for lookups once it comes from the members request above
+
 			}
 		}()
 	}
 
-	guild := <-guildCreateState
+	guild := <-guildCreateChan
 
+	// map of channelIDs to focus rooms
 	focusRooms := make(map[string]*models.FocusRoom)
 	for _, c := range guild.Channels {
 		if c.Type == discordgo.ChannelTypeGuildVoice {
@@ -312,6 +279,69 @@ func main() {
 	}
 	http.HandleFunc("/link", server.ServeLinkPageFunc(clientID))
 	http.ListenAndServe(":8080", nil)
+}
+
+func InitializeDG(token string) (*models.GlobalConfig, error) {
+	dg, err := discordgo.New("Bot " + token)
+	if err != nil {
+		log.Fatal("unable to initialize a new discordgo client: " + err.Error())
+	}
+
+	dg.StateEnabled = true
+	dg.State.TrackChannels = true
+	dg.State.TrackMembers = true
+	dg.State.TrackRoles = true
+	dg.State.TrackVoice = true
+	dg.State.TrackPresences = true
+
+	dg.Identify.Intents = discordgo.IntentsAll
+
+	readychan := make(chan *discordgo.Ready)
+	dg.AddHandler(ReadyHandlerFunc(readychan))
+
+	guildCreateChan := make(chan *discordgo.GuildCreate)
+	dg.AddHandler(GuildCreateHandlerFunc(guildCreateChan))
+
+	guildMembers := make(chan *discordgo.GuildMembersChunk)
+	dg.AddHandler(GuildMembersChunkFunc(guildMembers))
+
+	// global
+	err = dg.Open()
+	if err != nil {
+		return nil, fmt.Errorf("unable to open websocket to discord: %s", err.Error())
+	}
+
+	var ready *discordgo.Ready
+	select {
+	case ready = <-readychan:
+		break
+	case <-time.After(10 * time.Second):
+		return nil, fmt.Errorf("unable to receive discord ready signal after 10 seconds")
+	}
+
+	return &models.GlobalConfig{
+		Ready: ready,
+		DG:    dg,
+	}, nil
+}
+
+func GuildMembersChunkFunc(guildMembers chan *discordgo.GuildMembersChunk) func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
+	return func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
+		fmt.Println("guildmembersChunk")
+		guildMembers <- gm
+	}
+}
+
+func ReadyHandlerFunc(readychan chan *discordgo.Ready) func(_ *discordgo.Session, r *discordgo.Ready) {
+	return func(_ *discordgo.Session, r *discordgo.Ready) {
+		readychan <- r
+	}
+}
+
+func GuildCreateHandlerFunc(guildCreateChan chan *discordgo.GuildCreate) func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
+	return func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
+		guildCreateChan <- gc
+	}
 }
 
 // lookupUserRoles returns a slice of ids for roles a user has
