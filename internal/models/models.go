@@ -9,3 +9,9 @@ type FocusRoom struct {
 	Number        int
 	Delete        bool
 }
+
+type Server struct {
+	ID            string
+	ChannelPrefix string
+	RolePrefix    string
+}

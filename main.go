@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/npmaile/wagebot/internal/db"
 	"github.com/npmaile/wagebot/internal/models"
 	"github.com/npmaile/wagebot/internal/server"
 
@@ -22,6 +23,7 @@ const (
 )
 
 func main() {
+	// config boilerplate
 	viper.SetConfigName("config")
 	viper.SetConfigType("toml")
 	viper.AddConfigPath(".")
@@ -31,10 +33,15 @@ func main() {
 	}
 
 	clientID := viper.GetString("bot.app_id")
-	//viper.GetString("bot.public_key"))
 
 	token := os.Getenv("DISCORD_API_TOKEN")
 
+	db, err := db.NewSqliteStore("./db")
+	if err != nil {
+		log.Fatalf("unable to start: %s", err.Error())
+	}
+
+	// global
 	dg, err := discordgo.New("Bot " + token)
 	if err != nil {
 		log.Fatal("unable to initialize a new discordgo client: " + err.Error())
@@ -49,39 +56,52 @@ func main() {
 
 	dg.Identify.Intents = discordgo.IntentsAll
 
-	readychan := make(chan struct{})
-	voiceReady := make(chan *discordgo.GuildCreate)
-
-	dg.AddHandler(func(_ *discordgo.Session, _ *discordgo.Ready) {
-		readychan <- struct{}{}
+	readychan := make(chan *discordgo.Ready)
+	dg.AddHandler(func(_ *discordgo.Session, r *discordgo.Ready) {
+		readychan <- r
 	})
-
+	guildCreateState := make(chan *discordgo.GuildCreate)
 	dg.AddHandler(func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
 		if err != nil {
 			fmt.Println(err.Error())
 		}
-		voiceReady <- gc
+		guildCreateState <- gc
 	})
+
+	// per-server basis
 	guildMembers := make(chan *discordgo.GuildMembersChunk)
 	dg.AddHandler(func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
 		fmt.Println("guildmembersChunk")
 		guildMembers <- gm
 	})
+
+	// global
 	err = dg.Open()
 	if err != nil {
 		log.Fatalf("error opening ws connection: %s", err.Error())
 	}
 	defer dg.Close()
 
-	<-readychan
-	guild := <-voiceReady
+	// global
+	readyState := <-readychan
 
-	err = dg.RequestGuildMembers(guild.ID, "", 0, "", true)
-	if err != nil {
-		fmt.Println("screw you" + err.Error())
+	var servers map[string]*models.Server
+	for _, g := range readyState.Guilds {
+		go func() {
+			server, err := db.GetServerConfiguration(g.ID)
+			if err != nil {
+				log.Printf("unable to find config for server %s", g.ID)
+				return
+			}
+			servers[g.ID] = &server
+			err = dg.RequestGuildMembers(g.ID, "", 0, "", true)
+			if err != nil {
+				log.Printf("error requesting guild members for server %s: %s", g.ID, err.Error())
+			}
+		}()
 	}
-	channelprefix := "Focus Room #"
-	roleprefix := "Focus Room Administrator "
+
+	guild := <-guildCreateState
 
 	focusRooms := make(map[string]*models.FocusRoom)
 	for _, c := range guild.Channels {
@@ -291,7 +311,7 @@ func main() {
 		}
 	}
 	http.HandleFunc("/link", server.ServeLinkPageFunc(clientID))
-	http.ListenAndServe(":8080",nil)
+	http.ListenAndServe(":8080", nil)
 }
 
 // lookupUserRoles returns a slice of ids for roles a user has
