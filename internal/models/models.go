@@ -12,6 +12,8 @@ type FocusRoom struct {
 
 type Server struct {
 	Guild         *discordgo.Guild
+	GuildChan     chan *discordgo.GuildCreate
+	MembersChan   chan *discordgo.GuildMembersChunk
 	ID            string
 	ChannelPrefix string
 	RolePrefix    string
