@@ -9,8 +9,8 @@ import (
 )
 
 type DataStore interface {
-	GetServerConfiguration(guildID string) (models.Server, error)
-	GetAllServerConfigs() ([]*models.Server, error)
+	GetServerConfiguration(guildID string) (models.GuildConfig, error)
+	GetAllServerConfigs() ([]*models.GuildConfig, error)
 }
 
 type sqliteStore struct {
@@ -32,7 +32,7 @@ func NewSqliteStore(filePath string) (DataStore, error) {
 	}, nil
 }
 
-func (s *sqliteStore) GetServerConfiguration(guildID string) (models.Server, error) {
+func (s *sqliteStore) GetServerConfiguration(guildID string) (models.GuildConfig, error) {
 	row := s.storage.QueryRow(`SELECT
 	id, channelPrefix, rolePrefix
 	FROM
@@ -41,17 +41,17 @@ func (s *sqliteStore) GetServerConfiguration(guildID string) (models.Server, err
 	id = ?`, guildID)
 	err := row.Err()
 	if err != nil {
-		return models.Server{}, fmt.Errorf("unable to get server configuration: %s", err.Error())
+		return models.GuildConfig{}, fmt.Errorf("unable to get server configuration: %s", err.Error())
 	}
-	var ret models.Server
+	var ret models.GuildConfig
 	err = row.Scan(&ret.ID, &ret.ChannelPrefix, &ret.RolePrefix)
 	if err != nil {
-		return models.Server{}, fmt.Errorf("unable to get server configuration: %s", err.Error())
+		return models.GuildConfig{}, fmt.Errorf("unable to get server configuration: %s", err.Error())
 	}
 	return ret, nil
 }
 
-func (s *sqliteStore) GetAllServerConfigs() ([]*models.Server, error) {
+func (s *sqliteStore) GetAllServerConfigs() ([]*models.GuildConfig, error) {
 	rows, err := s.storage.Query(`SELECT
 	id, channelPrefix, rolePrefix
 	FROM
@@ -59,9 +59,9 @@ func (s *sqliteStore) GetAllServerConfigs() ([]*models.Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to list server configurations: %s", err.Error())
 	}
-	var ret []*models.Server
+	var ret []*models.GuildConfig
 	for rows.Next() {
-		s := models.Server{}
+		s := models.GuildConfig{}
 		err := rows.Scan(&s.ID, &s.ChannelPrefix, &s.RolePrefix)
 		if err != nil {
 			return nil, fmt.Errorf("unable to scan server configs into struct: %s", err.Error())

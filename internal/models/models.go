@@ -10,10 +10,7 @@ type FocusRoom struct {
 	Delete        bool
 }
 
-type Server struct {
-	Guild         *discordgo.Guild
-	GuildChan     chan *discordgo.GuildCreate
-	MembersChan   chan *discordgo.GuildMembersChunk
+type GuildConfig struct {
 	ID            string
 	ChannelPrefix string
 	RolePrefix    string
