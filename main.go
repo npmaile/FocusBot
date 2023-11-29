@@ -38,7 +38,7 @@ func main() {
 		log.Fatalf("unable to start: %s", err.Error())
 	}
 
-	servers := []guild.Guild{}
+	servers := []*guild.Guild{}
 	for _, config := range serverConfigs {
 		g := guild.NewFromConfig(*config)
 		servers = append(servers, g)

@@ -11,23 +11,25 @@ import (
 	"github.com/npmaile/wagebot/internal/models"
 )
 
-func NewFromConfig(c models.GuildConfig) Guild {
-	return Guild{
-		GuildChan:     make(chan *discordgo.GuildCreate),
-		MembersChan:   make(chan *discordgo.GuildMembersChunk),
-		ID:            c.ID,
-		ChannelPrefix: c.ChannelPrefix,
-		RolePrefix:    c.RolePrefix,
+func NewFromConfig(c models.GuildConfig) *Guild {
+	return &Guild{
+		GuildChan:        make(chan *discordgo.GuildCreate),
+		MembersChan:      make(chan *discordgo.GuildMembersChunk),
+		VoiceStateUpdate: make(chan *discordgo.VoiceStateUpdate),
+		ID:               c.ID,
+		ChannelPrefix:    c.ChannelPrefix,
+		RolePrefix:       c.RolePrefix,
 	}
 }
 
 type Guild struct {
-	DgGuild       *discordgo.Guild
-	GuildChan     chan *discordgo.GuildCreate
-	MembersChan   chan *discordgo.GuildMembersChunk
-	ID            string
-	ChannelPrefix string
-	RolePrefix    string
+	DgGuild          *discordgo.Guild
+	GuildChan        chan *discordgo.GuildCreate
+	MembersChan      chan *discordgo.GuildMembersChunk
+	VoiceStateUpdate chan *discordgo.VoiceStateUpdate
+	ID               string
+	ChannelPrefix    string
+	RolePrefix       string
 }
 
 func (server Guild) SetOffServerProcessing(dg *discordgo.Session) {
@@ -111,7 +113,7 @@ func (server Guild) SetOffServerProcessing(dg *discordgo.Session) {
 	}
 
 	// delete all marked for deletion
-	remainingWagecages := make(map[string]*models.FocusRoom)
+	remainingFocusRooms := make(map[string]*models.FocusRoom)
 	for _, wc := range focusRooms {
 		if wc.Delete {
 			_, err := dg.ChannelDelete(wc.ChannelStruct.ID)
@@ -125,10 +127,10 @@ func (server Guild) SetOffServerProcessing(dg *discordgo.Session) {
 				}
 			}
 		} else {
-			remainingWagecages[wc.ChannelStruct.ID] = wc
+			remainingFocusRooms[wc.ChannelStruct.ID] = wc
 		}
 	}
-	focusRooms = remainingWagecages
+	focusRooms = remainingFocusRooms
 
 	// if all are filled up (also figure out the lowest unused number)
 	createNew := true
@@ -246,6 +248,31 @@ func (server Guild) SetOffServerProcessing(dg *discordgo.Session) {
 			}
 		}
 	}
+	for {
+		voiceUpdate := <-server.VoiceStateUpdate
+		if voiceUpdate.ChannelID == "" {
+			// user has left
+
+			// check user's roles
+			// if any of them are the wage channel ones, get rid of it
+			//err := dg.GuildMemberRoleRemove(server.ID, voiceUpdate.UserID, room.Role.ID)
+			/*	if err != nil {
+				//todo: fix later
+				fmt.Println("error returned")
+			}*/
+		} else {
+			for id, room := range focusRooms {
+				if id == voiceUpdate.ChannelID {
+
+				}
+			}
+			//user has joined
+			// check roles of users in channel
+			// if no one has the role in the channel, add the role to this fella
+		}
+
+	}
+
 }
 
 func numberFromChannelName(prefix string, fullname string) (int, error) {
@@ -265,4 +292,3 @@ func lookupUserRoles(mc *discordgo.GuildMembersChunk, UserID string) []string {
 	}
 	return []string{}
 }
-

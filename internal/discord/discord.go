@@ -3,6 +3,7 @@ package discord
 import (
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -10,7 +11,7 @@ import (
 	"github.com/npmaile/wagebot/internal/models"
 )
 
-func InitializeDG(servers []guild.Guild, token string) (*models.GlobalConfig, error) {
+func InitializeDG(servers []*guild.Guild, token string) (*models.GlobalConfig, error) {
 	dg, err := discordgo.New("Bot " + token)
 	if err != nil {
 		log.Fatal("unable to initialize a new discordgo client: " + err.Error())
@@ -30,8 +31,15 @@ func InitializeDG(servers []guild.Guild, token string) (*models.GlobalConfig, er
 	dg.AddHandler(ReadyHandlerFunc(readychan))
 	dg.AddHandler(GuildCreateHandlerFunc(servers))
 	dg.AddHandler(GuildMembersChunkFunc(servers))
+	mg := mtexGuilds{
+		g:    map[string]*guild.Guild{},
+		mtex: sync.Mutex{},
+	}
+	for _, s := range servers {
+		mg.g[s.ID] = s
+	}
+	dg.AddHandler(GuildVoiceStateUpdateHandlerFunc(&mg))
 
-	// global
 	err = dg.Open()
 	if err != nil {
 		return nil, fmt.Errorf("unable to open websocket to discord: %s", err.Error())
@@ -51,6 +59,7 @@ func InitializeDG(servers []guild.Guild, token string) (*models.GlobalConfig, er
 	}, nil
 }
 
+// called once at the beginning
 func ReadyHandlerFunc(readychan chan *discordgo.Ready) func(_ *discordgo.Session, r *discordgo.Ready) {
 	return func(_ *discordgo.Session, r *discordgo.Ready) {
 		fmt.Println("Ready!")
@@ -58,7 +67,8 @@ func ReadyHandlerFunc(readychan chan *discordgo.Ready) func(_ *discordgo.Session
 	}
 }
 
-func GuildMembersChunkFunc(servers []guild.Guild) func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
+// called when asked for and necessary for getting membership information
+func GuildMembersChunkFunc(servers []*guild.Guild) func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
 	return func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
 		fmt.Println("received guild members")
 		for _, server := range servers {
@@ -71,7 +81,8 @@ func GuildMembersChunkFunc(servers []guild.Guild) func(_ *discordgo.Session, gm 
 	}
 }
 
-func GuildCreateHandlerFunc(servers []guild.Guild) func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
+// called at the beginning for each guild connected
+func GuildCreateHandlerFunc(servers []*guild.Guild) func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
 	return func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
 		fmt.Println("received guild create")
 		for _, server := range servers {
@@ -82,4 +93,26 @@ func GuildCreateHandlerFunc(servers []guild.Guild) func(_ *discordgo.Session, gc
 			}
 		}
 	}
+}
+
+func GuildVoiceStateUpdateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
+	return func(_ *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
+		fmt.Println("about to route a voice state update")
+		mg.mtex.Lock()
+		defer mg.mtex.Unlock()
+		g, ok := mg.g[vs.GuildID]
+		if !ok {
+			fmt.Println("failed to get a guild from the list")
+			// ignore this
+			return
+		}
+		g.VoiceStateUpdate <- vs
+		fmt.Println("just routed a voice state update")
+
+	}
+}
+
+type mtexGuilds struct {
+	g    map[string]*guild.Guild
+	mtex sync.Mutex
 }
