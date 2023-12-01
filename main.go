@@ -40,7 +40,7 @@ func main() {
 
 	servers := []*guild.Guild{}
 	for _, config := range serverConfigs {
-		g := guild.NewFromConfig(*config)
+		g := guild.NewFromConfig(config)
 		servers = append(servers, g)
 	}
 

@@ -36,7 +36,7 @@ func InitializeDG(servers []*guild.Guild, token string) (*models.GlobalConfig, e
 		mtex: sync.Mutex{},
 	}
 	for _, s := range servers {
-		mg.g[s.ID] = s
+		mg.g[s.Config.ID] = s
 	}
 	dg.AddHandler(GuildVoiceStateUpdateHandlerFunc(&mg))
 
@@ -72,7 +72,7 @@ func GuildMembersChunkFunc(servers []*guild.Guild) func(_ *discordgo.Session, gm
 	return func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
 		fmt.Println("received guild members")
 		for _, server := range servers {
-			if server.ID == gm.GuildID {
+			if server.Config.ID == gm.GuildID {
 				server.MembersChan <- gm
 				fmt.Println("sent guild members chunk")
 				return
@@ -86,7 +86,7 @@ func GuildCreateHandlerFunc(servers []*guild.Guild) func(_ *discordgo.Session, g
 	return func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
 		fmt.Println("received guild create")
 		for _, server := range servers {
-			if server.ID == gc.ID {
+			if server.Config.ID == gc.ID {
 				server.GuildChan <- gc
 				fmt.Println("sent guild create")
 				return

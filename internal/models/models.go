@@ -11,9 +11,10 @@ type FocusRoom struct {
 }
 
 type GuildConfig struct {
-	ID            string
-	ChannelPrefix string
-	RolePrefix    string
+	ID              string
+	ChannelPrefix   string
+	RolePrefix      string
+	ChannelCategory string
 }
 
 type GlobalConfig struct {
