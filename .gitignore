@@ -24,4 +24,4 @@ go.work
 main
 
 WageBot
-db
+datastore.sqlite

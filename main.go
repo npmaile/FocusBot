@@ -30,7 +30,7 @@ func main() {
 	token := os.Getenv("DISCORD_API_TOKEN")
 
 	//todo: add other database backend options to configuration
-	db, err := db.NewSqliteStore("./db")
+	db, err := db.NewSqliteStore(viper.GetString("store.path"))
 	if err != nil {
 		log.Fatalf("unable to start: %s", err.Error())
 	}
