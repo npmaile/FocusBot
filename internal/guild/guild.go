@@ -29,6 +29,8 @@ type Guild struct {
 	Initialized      bool
 }
 
+//todo: Currently it re-runs the initialization routine every time someone enters or leaves a channel. It should be more exact in what happens.
+
 func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	err := dg.RequestGuildMembers(server.Config.ID, "", 0, "", true)
 	if err != nil {
@@ -48,6 +50,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 		}
 	}
 	// map of channelIDs to focus rooms
+	// todo: abstract the following routine to it's own function
 	focusRooms := make(map[string]*models.FocusRoom)
 	for _, c := range guild.Channels {
 		if c.Type == discordgo.ChannelTypeGuildVoice {
@@ -78,6 +81,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 		}
 	}
 
+	// todo: abstract the following routine to it's own function
 	for _, voice_state := range guild.VoiceStates {
 		targetCage, ok := focusRooms[voice_state.ChannelID]
 		if !ok {
@@ -87,6 +91,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 		targetCage.Users = append(targetCage.Users, voice_state.UserID)
 	}
 
+	// todo: abstract the following routine to it's own function
 	for _, wc := range focusRooms {
 		// if there's no one in them, delete the empties (and roles) save for the first one
 		if len(wc.Users) == 0 && wc.Number != 0 {
@@ -97,6 +102,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	// get the lowest numbered wage cage and don't delete it
 	var lowest *models.FocusRoom
 
+	// todo: abstract the following routine to it's own function
 	for _, wc := range focusRooms {
 		if len(wc.Users) != 0 {
 			continue
@@ -116,6 +122,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	}
 
 	// delete all marked for deletion
+	// todo: abstract the following routine to it's own function
 	for _, wc := range focusRooms {
 		if wc.Delete {
 			_, err := dg.ChannelDelete(wc.ChannelStruct.ID)
@@ -135,6 +142,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	// if all are filled up (also figure out the lowest unused number)
 	createNew := true
 
+	// todo: abstract the following routine to it's own function
 	for _, wc := range focusRooms {
 		if len(wc.Users) == 0 {
 			createNew = false
@@ -151,6 +159,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	}
 	// create another wage cage
 	// create role as well (though this should probably be created immediately prior to giving it out
+	// todo: abstract the following routine to it's own function
 	if createNew {
 		// select the lowest unused number here
 		arr := make([]bool, len(focusRooms))
@@ -212,6 +221,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 		}
 
 		// add the users struct to the server for lookups once it comes from the members request above
+		// todo: abstract the following routine to it's own function
 		memberstore := <-server.MembersChan
 		for _, wc := range focusRooms {
 			if wc.Role == nil {
@@ -239,6 +249,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 		}
 
 		// remove the roles if the user isn't in the wagecage for their role
+		// todo: abstract the following routine to it's own function
 		for _, m := range memberstore.Members {
 			for _, wc := range focusRooms {
 				found := false

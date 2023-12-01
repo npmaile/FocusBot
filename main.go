@@ -20,6 +20,7 @@ func main() {
 	viper.AddConfigPath(".")
 	err := viper.ReadInConfig()
 	if err != nil {
+		//todo: better logging library and configuraion to handle log levels
 		log.Fatalf("unable to read configuration: %s", err.Error())
 	}
 
@@ -28,6 +29,7 @@ func main() {
 
 	token := os.Getenv("DISCORD_API_TOKEN")
 
+	//todo: add other database backend options to configuration
 	db, err := db.NewSqliteStore("./db")
 	if err != nil {
 		log.Fatalf("unable to start: %s", err.Error())
@@ -37,7 +39,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("unable to start: %s", err.Error())
 	}
-
+	//todo: abstract this out to another package
 	servers := []*guild.Guild{}
 	for _, config := range serverConfigs {
 		g := guild.NewFromConfig(config)
@@ -50,9 +52,12 @@ func main() {
 	}
 
 	for _, s := range servers {
+		//todo: set this off for new servers coming into the system
+		//todo: set off server processing for any servers whose handlers crash
 		go s.SetOffServerProcessing(dg.DG)
 	}
 
+	// todo: the entire management interface
 	log.Println("Listening on :8080")
 	http.HandleFunc("/link", webServer.ServeLinkPageFunc(clientID))
 	http.ListenAndServe(":8080", nil)

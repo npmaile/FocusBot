@@ -5,6 +5,7 @@ import (
 	"net/http"
 )
 
+//todo: replace with flashy interface!
 func ServeLinkPageFunc(clientID string) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, `

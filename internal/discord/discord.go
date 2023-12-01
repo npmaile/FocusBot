@@ -112,6 +112,8 @@ func GuildVoiceStateUpdateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session,
 	}
 }
 
+//todo: add a handler to handle channel creation that routes to the proper guildprocessing process to get rid of the time.wait
+
 type mtexGuilds struct {
 	g    map[string]*guild.Guild
 	mtex sync.Mutex
