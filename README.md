@@ -1,5 +1,9 @@
-# WageBot
-WageBot (likely to be renamed) is a discord bot to help facilitate serious communication
+# FocusBot
+Focus Bot is a discord bot to help facilitate serious communication
 
 ## Installation
-don't install this yet. We will update it when it's to that point
+**this is very early software. It likely will work poorly.**
+1. Install go
+1. run `go build main.go`
+1. run the app
+1. cry
