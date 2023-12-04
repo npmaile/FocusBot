@@ -51,7 +51,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	}
 	// map of channelIDs to focus rooms
 	// todo: abstract the following routine to it's own function
-	focusRooms := make(map[string]*models.FocusRoom)
+	server.focusRooms = make(map[string]*models.FocusRoom)
 	for _, c := range guild.Channels {
 		if c.Type == discordgo.ChannelTypeGuildVoice {
 			if strings.HasPrefix(c.Name, server.Config.ChannelPrefix) {
@@ -71,7 +71,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 						break
 					}
 				}
-				focusRooms[c.ID] = &models.FocusRoom{
+				server.focusRooms[c.ID] = &models.FocusRoom{
 					ChannelStruct: c,
 					Users:         []string{},
 					Number:        number,
@@ -83,7 +83,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 
 	// todo: abstract the following routine to it's own function
 	for _, voice_state := range guild.VoiceStates {
-		targetCage, ok := focusRooms[voice_state.ChannelID]
+		targetCage, ok := server.focusRooms[voice_state.ChannelID]
 		if !ok {
 			// ignore because they're not in a vc we care about
 			continue
@@ -92,7 +92,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	}
 
 	// todo: abstract the following routine to it's own function
-	for _, wc := range focusRooms {
+	for _, wc := range server.focusRooms {
 		// if there's no one in them, delete the empties (and roles) save for the first one
 		if len(wc.Users) == 0 && wc.Number != 0 {
 			wc.Delete = true
@@ -103,7 +103,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	var lowest *models.FocusRoom
 
 	// todo: abstract the following routine to it's own function
-	for _, wc := range focusRooms {
+	for _, wc := range server.focusRooms {
 		if len(wc.Users) != 0 {
 			continue
 		}
@@ -123,7 +123,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 
 	// delete all marked for deletion
 	// todo: abstract the following routine to it's own function
-	for _, wc := range focusRooms {
+	for _, wc := range server.focusRooms {
 		if wc.Delete {
 			_, err := dg.ChannelDelete(wc.ChannelStruct.ID)
 			if err != nil {
@@ -135,7 +135,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 					log.Printf("unable to delete role with id %s: %s\n", wc.ChannelStruct.ID, err.Error())
 				}
 			}
-			delete(focusRooms, wc.ChannelStruct.ID)
+			delete(server.focusRooms, wc.ChannelStruct.ID)
 		}
 	}
 
@@ -143,7 +143,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	createNew := true
 
 	// todo: abstract the following routine to it's own function
-	for _, wc := range focusRooms {
+	for _, wc := range server.focusRooms {
 		if len(wc.Users) == 0 {
 			createNew = false
 			break
@@ -162,16 +162,16 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	// todo: abstract the following routine to it's own function
 	if createNew {
 		// select the lowest unused number here
-		arr := make([]bool, len(focusRooms))
-		for _, wc := range focusRooms {
-			if wc.Number >= len(focusRooms) {
+		arr := make([]bool, len(server.focusRooms))
+		for _, wc := range server.focusRooms {
+			if wc.Number >= len(server.focusRooms) {
 				continue
 			} else {
 				arr[wc.Number] = true
 			}
 		}
 
-		var newNumber = len(focusRooms)
+		var newNumber = len(server.focusRooms)
 		for i, exists := range arr {
 			if !exists {
 				newNumber = i
@@ -212,7 +212,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 		if err != nil {
 			log.Printf("unable to set perms on new channel: %s", err.Error())
 		}
-		focusRooms[channel.ID] = &models.FocusRoom{
+		server.focusRooms[channel.ID] = &models.FocusRoom{
 			ChannelStruct: channel,
 			Role:          role,
 			Users:         []string{},
@@ -223,7 +223,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 		// add the users struct to the server for lookups once it comes from the members request above
 		// todo: abstract the following routine to it's own function
 		memberstore := <-server.MembersChan
-		for _, wc := range focusRooms {
+		for _, wc := range server.focusRooms {
 			if wc.Role == nil {
 				continue
 			}
@@ -251,7 +251,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 		// remove the roles if the user isn't in the wagecage for their role
 		// todo: abstract the following routine to it's own function
 		for _, m := range memberstore.Members {
-			for _, wc := range focusRooms {
+			for _, wc := range server.focusRooms {
 				found := false
 				for _, user := range wc.Users {
 					if m.User.ID == user {
