@@ -3,11 +3,12 @@ package models
 import "github.com/bwmarrin/discordgo"
 
 type FocusRoom struct {
-	ChannelStruct *discordgo.Channel
-	Role          *discordgo.Role
-	Users         []string
-	Number        int
-	Delete        bool
+	ChannelStruct  *discordgo.Channel
+	Role           *discordgo.Role
+	Users          []string
+	Number         int
+	MarkDelete     bool
+	MarkRoleDelete bool
 }
 
 type GuildConfig struct {

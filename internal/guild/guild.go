@@ -5,7 +5,6 @@ import (
 	"log"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/npmaile/wagebot/internal/models"
@@ -50,36 +49,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 		}
 	}
 	// map of channelIDs to focus rooms
-	// todo: abstract the following routine to it's own function
-	server.focusRooms = make(map[string]*models.FocusRoom)
-	for _, c := range guild.Channels {
-		if c.Type == discordgo.ChannelTypeGuildVoice {
-			if strings.HasPrefix(c.Name, server.Config.ChannelPrefix) {
-				number, err := numberFromChannelName(server.Config.ChannelPrefix, c.Name)
-				if err != nil {
-					log.Printf("Unable to get channel number from channel name %s: %s", c.Name, err.Error())
-				}
-				// check for corresponding role
-				var targetRole *discordgo.Role
-				for _, role := range guild.Roles {
-					rolenumber, err := numberFromChannelName(server.Config.RolePrefix, role.Name)
-					if err != nil {
-						// probably not the role we're looking for
-						continue
-					} else if rolenumber == number {
-						targetRole = role
-						break
-					}
-				}
-				server.focusRooms[c.ID] = &models.FocusRoom{
-					ChannelStruct: c,
-					Users:         []string{},
-					Number:        number,
-					Role:          targetRole,
-				}
-			}
-		}
-	}
+	server.RefreshChannelState(dg, guild)
 
 	// todo: abstract the following routine to it's own function
 	for _, voice_state := range guild.VoiceStates {
@@ -95,7 +65,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	for _, wc := range server.focusRooms {
 		// if there's no one in them, delete the empties (and roles) save for the first one
 		if len(wc.Users) == 0 && wc.Number != 0 {
-			wc.Delete = true
+			wc.MarkDelete = true
 		}
 	}
 
@@ -114,18 +84,19 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 				lowest = wc
 			}
 		}
-		wc.Delete = true
+		wc.MarkDelete = true
 	}
 
 	if lowest != nil {
-		lowest.Delete = false
+		lowest.MarkDelete = false
+		lowest.MarkRoleDelete = true
 	}
 
 	// delete all marked for deletion
-	// todo: abstract the following routine to it's own function
+	// todo: abstract the following routines to it's own function
 	for _, wc := range server.focusRooms {
-		if wc.Delete {
-			_, err := dg.ChannelDelete(wc.ChannelStruct.ID)
+		if wc.MarkDelete {
+			_, err = dg.ChannelDelete(wc.ChannelStruct.ID)
 			if err != nil {
 				log.Printf("unable to delete channel with id %s: %s\n", wc.ChannelStruct.ID, err.Error())
 			}
@@ -136,16 +107,25 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 				}
 			}
 			delete(server.focusRooms, wc.ChannelStruct.ID)
+		} else if wc.MarkRoleDelete {
+			if wc.Role != nil {
+				err = dg.GuildRoleDelete(guild.ID, wc.Role.ID)
+				if err != nil {
+					log.Printf("unable to delete role with id %s: %s\n", wc.ChannelStruct.ID, err.Error())
+				}
+				wc.Role = nil
+			}
+
 		}
 	}
 
 	// if all are filled up (also figure out the lowest unused number)
-	createNew := true
+	shouldCreateNew := true
 
 	// todo: abstract the following routine to it's own function
 	for _, wc := range server.focusRooms {
 		if len(wc.Users) == 0 {
-			createNew = false
+			shouldCreateNew = false
 			break
 		}
 	}
@@ -159,133 +139,183 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	}
 	// create another wage cage
 	// create role as well (though this should probably be created immediately prior to giving it out
+	if shouldCreateNew {
+		server.CreateNextChannel(dg, channelParentID)
+	}
+
+	// add the users struct to the server for lookups once it comes from the members request above
 	// todo: abstract the following routine to it's own function
-	if createNew {
-		// select the lowest unused number here
-		arr := make([]bool, len(server.focusRooms))
-		for _, wc := range server.focusRooms {
-			if wc.Number >= len(server.focusRooms) {
-				continue
-			} else {
-				arr[wc.Number] = true
-			}
-		}
+	memberstore := <-server.MembersChan
+	for _, wc := range server.focusRooms {
+		server.AssignRole(dg, wc, memberstore)
+	}
 
-		var newNumber = len(server.focusRooms)
-		for i, exists := range arr {
-			if !exists {
-				newNumber = i
-				break
-			}
-		}
-		var color = 69
-		var hoist = false
-		var mentionable = false
-		var perms = int64(0)
-		role, err := dg.GuildRoleCreate(guild.ID, &discordgo.RoleParams{
-			Name:        server.Config.RolePrefix + strconv.Itoa(newNumber),
-			Color:       &color,
-			Hoist:       &hoist,
-			Permissions: &perms,
-			Mentionable: &mentionable,
-		})
-		if err != nil {
-			log.Printf("unable to create role: %s", err.Error())
-		}
-		//todo: set up something to listn for the creation to be confirmed and act on it instead of sleeping
-		time.Sleep(time.Second * 1)
-		channel, err := dg.GuildChannelCreateComplex(guild.ID, discordgo.GuildChannelCreateData{
-			Name:     server.Config.ChannelPrefix + strconv.Itoa(newNumber),
-			Type:     discordgo.ChannelTypeGuildVoice,
-			Topic:    "Focus",
-			ParentID: channelParentID,
-		})
-		if err != nil {
-			log.Printf("unable to create new channel: %s ", err.Error())
-		}
+}
 
-		time.Sleep(time.Second * 1)
-
-		deny := int64(0)
-		allow := int64(16777472)
-		err = dg.ChannelPermissionSet(channel.ID, role.ID, discordgo.PermissionOverwriteTypeRole, allow, deny)
-		if err != nil {
-			log.Printf("unable to set perms on new channel: %s", err.Error())
+func (server *Guild) AssignRole(dg *discordgo.Session, wc *models.FocusRoom, memberstore *discordgo.GuildMembersChunk) {
+	if wc.Role == nil {
+		wc.Role = server.CreateRole(dg, wc.Number)
+		if wc.Role == nil {
+			return
 		}
-		server.focusRooms[channel.ID] = &models.FocusRoom{
-			ChannelStruct: channel,
-			Role:          role,
-			Users:         []string{},
-			Number:        newNumber,
-			Delete:        false,
-		}
-
-		// add the users struct to the server for lookups once it comes from the members request above
-		// todo: abstract the following routine to it's own function
-		memberstore := <-server.MembersChan
-		for _, wc := range server.focusRooms {
-			if wc.Role == nil {
-				continue
-			}
-			fmt.Printf("wc %d, usercount %d, role %s\n", wc.Number, len(wc.Users), wc.Role.Name)
-			userfound := false
-		searchForUserWithRole:
-			for _, user := range wc.Users {
-				fmt.Printf("%#v", user)
-				for _, role := range lookupUserRoles(memberstore, user) {
-					if role == wc.Role.ID {
-						userfound = true
-						break searchForUserWithRole
-					}
-				}
-			}
-			if !userfound && len(wc.Users) > 0 {
-				//give user[0] the role
-				err := dg.GuildMemberRoleAdd(guild.ID, wc.Users[0], wc.Role.ID)
-				if err != nil {
-					log.Printf("unable to add role to guild member: %s", err.Error())
-				}
-			}
-		}
-
-		// remove the roles if the user isn't in the wagecage for their role
-		// todo: abstract the following routine to it's own function
-		for _, m := range memberstore.Members {
-			for _, wc := range server.focusRooms {
-				found := false
-				for _, user := range wc.Users {
-					if m.User.ID == user {
-						found = true
-					}
-				}
-				if !found {
-					for _, r := range m.Roles {
-						if wc.Role == nil || r == wc.Role.ID {
-							err := dg.GuildMemberRoleRemove(server.Config.ID, m.User.ID, wc.Role.ID)
-							if err != nil {
-								log.Println(err.Error())
-							}
-						}
-					}
-				}
+	}
+	fmt.Printf("wc %d, usercount %d, role %s\n", wc.Number, len(wc.Users), wc.Role.Name)
+	if len(wc.Users) == 0 {
+		return
+	}
+	userfound := false
+searchForUserWithRole:
+	for _, user := range wc.Users {
+		fmt.Printf("%#v", user)
+		for _, role := range lookupUserRoles(memberstore, user) {
+			if role == wc.Role.ID {
+				userfound = true
+				break searchForUserWithRole
 			}
 		}
 	}
+	if !userfound {
+		//give user[0] the role
+		err := dg.GuildMemberRoleAdd(server.Config.ID, wc.Users[0], wc.Role.ID)
+		if err != nil {
+			log.Printf("unable to add role to guild member: %s", err.Error())
+		} else {
+			log.Printf("assigned role %s to user %s", wc.Role.ID, wc.Users[0])
+		}
 
+	}
+
+}
+
+// bug: roles not being given out
+// bug: need to create role for channels missing roles
+
+func (server *Guild) CreateNextChannel(dg *discordgo.Session, channelParentID string) {
+	// select the lowest unused number here
+	arr := make([]bool, len(server.focusRooms))
+	for _, wc := range server.focusRooms {
+		if wc.Number >= len(server.focusRooms) {
+			continue
+		} else {
+			arr[wc.Number] = true
+		}
+	}
+
+	var newNumber = len(server.focusRooms)
+	for i, exists := range arr {
+		if !exists {
+			newNumber = i
+			break
+		}
+	}
+	role := server.CreateRole(dg, newNumber)
+	//todo: set up something to listen for the creation to be confirmed and act on it instead of sleeping
+	channel, err := dg.GuildChannelCreateComplex(server.Config.ID, discordgo.GuildChannelCreateData{
+		Name:     server.Config.ChannelPrefix + strconv.Itoa(newNumber),
+		Type:     discordgo.ChannelTypeGuildVoice,
+		Topic:    "Focus",
+		ParentID: channelParentID,
+	})
+	if err != nil {
+		log.Printf("unable to create new channel: %s ", err.Error())
+	}
+
+	deny := int64(0)
+	allow := int64(16777472)
+	err = dg.ChannelPermissionSet(channel.ID, role.ID, discordgo.PermissionOverwriteTypeRole, allow, deny)
+	if err != nil {
+		log.Printf("unable to set perms on new channel: %s", err.Error())
+	}
+	server.focusRooms[channel.ID] = &models.FocusRoom{
+		ChannelStruct: channel,
+		Role:          role,
+		Users:         []string{},
+		Number:        newNumber,
+		MarkDelete:    false,
+	}
+
+}
+
+func (server *Guild) CreateRole(dg *discordgo.Session, number int) *discordgo.Role {
+	var color = 69
+	var hoist = false
+	var mentionable = false
+	var perms = int64(0)
+	role, err := dg.GuildRoleCreate(server.Config.ID, &discordgo.RoleParams{
+		Name:        server.Config.RolePrefix + strconv.Itoa(number),
+		Color:       &color,
+		Hoist:       &hoist,
+		Permissions: &perms,
+		Mentionable: &mentionable,
+	})
+	if err != nil {
+		log.Printf("unable to create role: %s", err.Error())
+	} else {
+		log.Printf("Created role %s in guild %s", role.Name, server.Config.ID)
+	}
+	return role
+}
+
+func (server *Guild) RefreshChannelState(dg *discordgo.Session, guild *discordgo.Guild) {
+	server.focusRooms = make(map[string]*models.FocusRoom)
+	for _, c := range guild.Channels {
+		if c.Type == discordgo.ChannelTypeGuildVoice && strings.HasPrefix(c.Name, server.Config.ChannelPrefix) {
+			number, err := numberFromChannelName(server.Config.ChannelPrefix, c.Name)
+			if err != nil {
+				log.Printf("Unable to get channel number from channel name %s: %s", c.Name, err.Error())
+			}
+			// check for corresponding role
+			var targetRole *discordgo.Role
+			for _, role := range guild.Roles {
+				var rolenumber int
+				rolenumber, err = numberFromChannelName(server.Config.RolePrefix, role.Name)
+				if err != nil {
+					// probably not the role we're looking for
+					continue
+				} else if rolenumber == number {
+					targetRole = role
+					break
+				}
+			}
+			if targetRole == nil {
+				server.CreateRole(dg, number)
+			}
+			server.focusRooms[c.ID] = &models.FocusRoom{
+				ChannelStruct: c,
+				Users:         []string{},
+				Number:        number,
+				Role:          targetRole,
+			}
+		}
+	}
 }
 
 func (server Guild) SetOffServerProcessing(dg *discordgo.Session) {
 	server.getServerStateInTheRightPlace(dg)
 	for {
-		<-server.VoiceStateUpdate
+		vsu := <-server.VoiceStateUpdate
+		log.Printf("user %s %s", vsu.UserID, deltaVoiceStateStatusBullshit(vsu))
 		server.getServerStateInTheRightPlace(dg)
 	}
+}
+
+func deltaVoiceStateStatusBullshit(vsu *discordgo.VoiceStateUpdate) string {
+	if vsu.BeforeUpdate == nil {
+		return fmt.Sprintf("joined %s", vsu.ChannelID)
+	} else if vsu.ChannelID == "" {
+		return fmt.Sprintf("left %s", vsu.BeforeUpdate.ChannelID)
+	} else if vsu.BeforeUpdate.ChannelID != vsu.ChannelID {
+		return fmt.Sprintf("left %s and joined %s", vsu.BeforeUpdate.ChannelID, vsu.ChannelID)
+	}
+	return "did nothing of consequence"
+
 }
 
 func numberFromChannelName(prefix string, fullname string) (int, error) {
 	if len(prefix) > len(fullname) {
 		return 0, fmt.Errorf("this aint it, cuz")
 	}
+	//todo: change to strings.trimprefix
 	numberMaybe := strings.Trim(fullname[len(prefix):], " ")
 	return strconv.Atoi(numberMaybe)
 }
