@@ -14,10 +14,14 @@ import (
 )
 
 func main() {
+	configPath := os.Getenv("CONFIG_PATH")
+	if configPath == "" {
+		configPath = "."
+	}
 	// config boilerplate
 	viper.SetConfigName("config")
 	viper.SetConfigType("toml")
-	viper.AddConfigPath(".")
+	viper.AddConfigPath(configPath)
 	err := viper.ReadInConfig()
 	if err != nil {
 		//todo: better logging library and configuraion to handle log levels
