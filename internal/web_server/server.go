@@ -5,10 +5,11 @@ import (
 	"net/http"
 )
 
-//todo: replace with flashy interface!
+// todo: replace with flashy interface!
 func ServeLinkPageFunc(clientID string) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, `
+<html>
 	<head>
 		<title>
 			"Please click the link to add the focus bot to your server"
@@ -16,6 +17,7 @@ func ServeLinkPageFunc(clientID string) func(w http.ResponseWriter, r *http.Requ
 	</head>
 	<body>
 		<a href=https://discord.com/oauth2/authorize?client_id=%s&scope=bot&permissions=1> add to server!</a>
-	</body`, clientID)
+	</body>
+</html>`, clientID)
 	}
 }
