@@ -23,4 +23,4 @@ jobs:
           echo "$SSH_PUB" > $HOME/.ssh/id_rsa.pub
           chmod 600 $HOME/.ssh/id_rsa
           chmod 700 $HOME/.ssh
-          ssh root@67.205.159.248 'wget https://raw.githubusercontent.com/npmaile/FocusBot/main/docker-compose.yml && docker compose up --pull always --force-recreate -d'
+          ssh -o UserKnownHostsFile=/dev/null root@67.205.159.248 'wget https://raw.githubusercontent.com/npmaile/FocusBot/main/docker-compose.yml && docker compose up --pull always --force-recreate -d'
