@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"log"
 
 	_ "github.com/mattn/go-sqlite3"
 
@@ -66,6 +67,9 @@ func (s *sqliteStore) GetAllServerConfigs() ([]*models.GuildConfig, error) {
 			return nil, fmt.Errorf("unable to scan server configs into struct: %s", err.Error())
 		}
 		ret = append(ret, &s)
+	}
+	for _, guild := range ret{
+		log.Println("loaded config for guild: %s", guild.ID)
 	}
 	return ret, nil
 
