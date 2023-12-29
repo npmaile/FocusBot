@@ -7,15 +7,30 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/npmaile/wagebot/internal/db"
 	"github.com/npmaile/wagebot/internal/guild"
 	"github.com/npmaile/wagebot/internal/models"
 )
 
-func InitializeDG(servers []*guild.Guild, token string) (*models.GlobalConfig, error) {
+func InitializeDG(db db.DataStore, token string) error {
+	// load configurations from passed in datastore
+
+	serverConfigs, err := db.GetAllServerConfigs()
+	if err != nil {
+		log.Fatalf("unable to start: %s", err.Error())
+	}
+
+	servers := []*guild.Guild{}
+	for _, config := range serverConfigs {
+		g := guild.NewFromConfig(config)
+		servers = append(servers, g)
+	}
+
 	dg, err := discordgo.New("Bot " + token)
 	if err != nil {
 		log.Fatal("unable to initialize a new discordgo client: " + err.Error())
 	}
+
 	dg.SyncEvents = false
 	dg.StateEnabled = true
 	dg.State.TrackChannels = true
@@ -40,27 +55,26 @@ func InitializeDG(servers []*guild.Guild, token string) (*models.GlobalConfig, e
 	// global message handler for general state
 	dg.AddHandler(ReadyHandlerFunc(readychan))
 	// messages to be routed to individual server threads
-	dg.AddHandler(GuildCreateHandlerFunc(&mg))
+	dg.AddHandler(GuildCreateHandlerFunc(&mg, db))
 	dg.AddHandler(GuildMembersChunkFunc(&mg))
 	dg.AddHandler(GuildVoiceStateUpdateHandlerFunc(&mg))
 
 	err = dg.Open()
 	if err != nil {
-		return nil, fmt.Errorf("unable to open websocket to discord: %s", err.Error())
+		return fmt.Errorf("unable to open websocket to discord: %s", err.Error())
 	}
 
-	var ready *discordgo.Ready
 	select {
-	case ready = <-readychan:
+	case <-readychan:
 		break
 	case <-time.After(10 * time.Second):
-		return nil, fmt.Errorf("unable to receive discord ready signal after 10 seconds")
+		return fmt.Errorf("unable to receive discord ready signal after 10 seconds")
 	}
 
-	return &models.GlobalConfig{
-		Ready: ready,
-		DG:    dg,
-	}, nil
+	for _, s := range servers {
+		go s.SetOffServerProcessing(dg)
+	}
+	return nil
 }
 
 // called once at the beginning
@@ -89,28 +103,30 @@ func GuildMembersChunkFunc(mg *mtexGuilds) func(_ *discordgo.Session, gm *discor
 }
 
 // called at the beginning for each guild connected
-func GuildCreateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
-	return func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
+func GuildCreateHandlerFunc(mg *mtexGuilds, db db.DataStore) func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
+	return func(dg *discordgo.Session, gc *discordgo.GuildCreate) {
 		fmt.Println("received guild create")
 		mg.mtex.Lock()
 		server, ok := mg.g[gc.ID]
 		mg.mtex.Unlock()
-		// server isn't in the existing set of servers running
 		if !ok {
 			fmt.Println("failed to get a guild from the list")
-			// create a new server struct
-			// add it to the database with default values
-			// add it to the server list
-			mg.mtex.Lock()
-			
-			mg.mtex.Unlock()
-			// start processing
-
-			return
+			server = createNewServer(dg, gc.ID, mg, db)
 		}
 		server.GuildChan <- gc
 		fmt.Println("sent guild create")
 	}
+}
+
+func createNewServer(dg *discordgo.Session, id string, mg *mtexGuilds, db db.DataStore) *guild.Guild {
+	newGC := models.DefaultGuildConfig(id)
+	db.AddServerConfiguration(newGC)
+	g := guild.NewFromConfig(newGC)
+	mg.mtex.Lock()
+	mg.g[g.Config.ID] = g
+	mg.mtex.Unlock()
+	g.SetOffServerProcessing(dg)
+	return g
 }
 
 func GuildVoiceStateUpdateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
