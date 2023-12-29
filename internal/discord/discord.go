@@ -27,17 +27,15 @@ func InitializeDG(servers []*guild.Guild, token string) (*models.GlobalConfig, e
 	// todo: get only the necessary intents
 	dg.Identify.Intents = discordgo.IntentsAll
 
-	readychan := make(chan *discordgo.Ready)
-	dg.AddHandler(ReadyHandlerFunc(readychan))
-	dg.AddHandler(GuildCreateHandlerFunc(servers))
-	dg.AddHandler(GuildMembersChunkFunc(servers))
 	mg := mtexGuilds{
 		g:    map[string]*guild.Guild{},
 		mtex: sync.Mutex{},
 	}
-	for _, s := range servers {
-		mg.g[s.Config.ID] = s
-	}
+	readychan := make(chan *discordgo.Ready)
+	dg.AddHandler(ReadyHandlerFunc(readychan))
+	dg.AddHandler(GuildCreateHandlerFunc(&mg))
+	dg.AddHandler(GuildMembersChunkFunc(&mg))
+
 	dg.AddHandler(GuildVoiceStateUpdateHandlerFunc(&mg))
 
 	err = dg.Open()
@@ -68,30 +66,37 @@ func ReadyHandlerFunc(readychan chan *discordgo.Ready) func(_ *discordgo.Session
 }
 
 // called when asked for and necessary for getting membership information
-func GuildMembersChunkFunc(servers []*guild.Guild) func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
+func GuildMembersChunkFunc(mg *mtexGuilds) func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
 	return func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
 		fmt.Println("received guild members")
-		for _, server := range servers {
-			if server.Config.ID == gm.GuildID {
-				server.MembersChan <- gm
-				fmt.Println("sent guild members chunk")
-				return
-			}
+		mg.mtex.Lock()
+		server, ok := mg.g[gm.GuildID]
+		mg.mtex.Unlock()
+		if !ok {
+			fmt.Println("failed to get a guild from the list")
+			// ignore this
+			return
 		}
+		server.MembersChan <- gm
+		fmt.Println("sent guild members chunk")
 	}
 }
 
 // called at the beginning for each guild connected
-func GuildCreateHandlerFunc(servers []*guild.Guild) func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
+func GuildCreateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
 	return func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
 		fmt.Println("received guild create")
-		for _, server := range servers {
-			if server.Config.ID == gc.ID {
-				server.GuildChan <- gc
-				fmt.Println("sent guild create")
-				return
-			}
+		mg.mtex.Lock()
+		server, ok := mg.g[gc.ID]
+		mg.mtex.Unlock()
+		if !ok {
+			fmt.Println("failed to get a guild from the list")
+			// ignore this
+			// TODO: this (it's important for onboarding)
+			return
 		}
+		server.GuildChan <- gc
+		fmt.Println("sent guild create")
 	}
 }
 
@@ -99,13 +104,14 @@ func GuildVoiceStateUpdateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session,
 	return func(_ *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
 		fmt.Println("about to route a voice state update")
 		mg.mtex.Lock()
-		defer mg.mtex.Unlock()
 		g, ok := mg.g[vs.GuildID]
+		mg.mtex.Unlock()
 		if !ok {
 			fmt.Println("failed to get a guild from the list")
 			// ignore this
 			return
-		}
+		} //todo: fix this
+
 		g.VoiceStateUpdate <- vs
 		fmt.Println("just routed a voice state update")
 

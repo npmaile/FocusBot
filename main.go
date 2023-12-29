@@ -17,7 +17,7 @@ func main() {
 	configPath := os.Getenv("CONFIG_PATH")
 	if configPath == "" {
 		configPath = "."
-}
+	}
 	// config boilerplate
 	viper.SetConfigName("config")
 	viper.SetConfigType("toml")
@@ -30,7 +30,7 @@ func main() {
 
 	log.Println("starting up")
 	clientID := viper.GetString("bot.app_id")
-	token:= viper.GetString("bot.api_token")
+	token := viper.GetString("bot.api_token")
 
 	//todo: add other database backend options to configuration
 	db, err := db.NewSqliteStore(viper.GetString("store.path"))
