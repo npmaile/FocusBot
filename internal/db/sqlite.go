@@ -10,12 +10,11 @@ import (
 	"github.com/npmaile/wagebot/internal/models"
 )
 
-
 type sqliteStore struct {
 	storage *sql.DB
 }
 
-//  todo: use proper logging once it exists
+// todo: use proper logging once it exists
 func NewSqliteStore(filePath string) (DataStore, error) {
 	// add the filepath to store the databe to the config toml
 	db, err := sql.Open("sqlite3", filePath)
@@ -68,9 +67,25 @@ func (s *sqliteStore) GetAllServerConfigs() ([]*models.GuildConfig, error) {
 		}
 		ret = append(ret, &s)
 	}
-	for _, guild := range ret{
-		log.Println("loaded config for guild: %s", guild.ID)
+	for _, guild := range ret {
+		log.Printf("loaded config for guild: %s\n", guild.ID)
 	}
 	return ret, nil
 
+}
+
+func (s *sqliteStore) AddServerConfiguration(cfg *models.GuildConfig) error {
+	_, err := s.storage.Exec(`INSERT
+	into servers
+	(id, channelPrefix, rolePrefix, channelCategory)
+	VALUES
+	(?,?,?,?)`, cfg.ID, cfg.ChannelPrefix, cfg.RolePrefix, cfg.ChannelCategory)
+	return err
+}
+
+func (s *sqliteStore) UpdateServerConfiguration(cfg *models.GuildConfig) error {
+	_, err := s.storage.Exec(`UPDATE servers
+	SET channelPrefix = ?, rolePrefix = ?, channelCategory = ?
+	WHERE servers.id = ?`, cfg.ChannelPrefix, cfg.RolePrefix, cfg.ChannelCategory, cfg.ID)
+	return err
 }

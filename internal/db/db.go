@@ -7,7 +7,8 @@ import (
 type DataStore interface {
 	GetServerConfiguration(guildID string) (models.GuildConfig, error)
 	GetAllServerConfigs() ([]*models.GuildConfig, error)
-	// todo: add server config updates to insert into database from management interface
+	AddServerConfiguration(*models.GuildConfig) error
+	UpdateServerConfiguration(*models.GuildConfig) error
 }
 
 // todo: add postgres db backend option

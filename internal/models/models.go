@@ -18,6 +18,15 @@ type GuildConfig struct {
 	ChannelCategory string
 }
 
+func DefaultGuildConfig(id string)*GuildConfig{
+	return &GuildConfig{
+		ID:              id,
+		ChannelPrefix:   "FocusRoom",
+		RolePrefix:      "Focus King",
+		ChannelCategory: "",
+	}
+}
+
 type GlobalConfig struct {
 	Ready *discordgo.Ready
 	// global dg session object

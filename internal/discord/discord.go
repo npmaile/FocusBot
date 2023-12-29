@@ -31,11 +31,17 @@ func InitializeDG(servers []*guild.Guild, token string) (*models.GlobalConfig, e
 		g:    map[string]*guild.Guild{},
 		mtex: sync.Mutex{},
 	}
+
+	for _, s := range servers {
+		mg.g[s.Config.ID] = s
+	}
+
 	readychan := make(chan *discordgo.Ready)
+	// global message handler for general state
 	dg.AddHandler(ReadyHandlerFunc(readychan))
+	// messages to be routed to individual server threads
 	dg.AddHandler(GuildCreateHandlerFunc(&mg))
 	dg.AddHandler(GuildMembersChunkFunc(&mg))
-
 	dg.AddHandler(GuildVoiceStateUpdateHandlerFunc(&mg))
 
 	err = dg.Open()
@@ -89,10 +95,17 @@ func GuildCreateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session, gc *disco
 		mg.mtex.Lock()
 		server, ok := mg.g[gc.ID]
 		mg.mtex.Unlock()
+		// server isn't in the existing set of servers running
 		if !ok {
 			fmt.Println("failed to get a guild from the list")
-			// ignore this
-			// TODO: this (it's important for onboarding)
+			// create a new server struct
+			// add it to the database with default values
+			// add it to the server list
+			mg.mtex.Lock()
+			
+			mg.mtex.Unlock()
+			// start processing
+
 			return
 		}
 		server.GuildChan <- gc
@@ -117,8 +130,6 @@ func GuildVoiceStateUpdateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session,
 
 	}
 }
-
-//todo: add a handler to handle channel creation that routes to the proper guildprocessing process to get rid of the time.wait
 
 type mtexGuilds struct {
 	g    map[string]*guild.Guild
