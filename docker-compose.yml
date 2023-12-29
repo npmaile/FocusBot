@@ -1,5 +1,6 @@
 services:
   focusBot:
+    restart: always
     environment:
       - CONFIG_PATH=/app/stuff
     image: "ghcr.io/npmaile/focusbot/focusbot:latest"

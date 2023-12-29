@@ -13,3 +13,14 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           image-name: "focusBot"
           image-tag: "latest"
+      - name: move files via rsync
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_PUB: ${{ secrets.SSH_PUB }}
+        run: |
+          mkdir -p $HOME/.ssh
+          echo "$SSH_KEY" > "$HOME/.ssh/id_rsa"
+          echo "$SSH_PUB" > $HOME/.ssh/id_rsa.pub
+          chmod 600 $HOME/.ssh/id_rsa
+          chmod 700 $HOME/.ssh
+          ssh root@67.205.159.248 -c 'wget https://raw.githubusercontent.com/npmaile/FocusBot/main/docker-compose.yml && docker compose up --pull always --force-recreate -d'
