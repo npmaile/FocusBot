@@ -1,7 +1,7 @@
 services:
   focusBot:
     environment:
-      - CONFIG_PATH=/config
+      - CONFIG_PATH=/app/stuff
     image: "ghcr.io/npmaile/focusbot/focusbot:latest"
     volumes:
-      - ./:/config
+      - ./stuff:/app/stuff

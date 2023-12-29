@@ -1,6 +1,0 @@
-[bot]
-app_id = "1169055366085087312"
-public_key = "0x54b745e43fd79dd0e3d8f494c1d12625adaa516af6551da56ca62c220bcde863"
-
-[store]
-path = "./datastore.sqlite"
