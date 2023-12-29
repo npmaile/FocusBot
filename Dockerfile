@@ -1,4 +1,5 @@
 FROM golang:bookworm as builder
+RUN apt install sqlite3
 WORKDIR /app
 COPY go.mod .
 COPY go.sum .
