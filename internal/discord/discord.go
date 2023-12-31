@@ -27,6 +27,8 @@ func InitializeDG(servers []*guild.Guild, token string) (*models.GlobalConfig, e
 	// todo: get only the necessary intents
 	dg.Identify.Intents = discordgo.IntentsAll
 
+	dg.ShouldReconnectOnError = true
+
 	readychan := make(chan *discordgo.Ready)
 	dg.AddHandler(ReadyHandlerFunc(readychan))
 	dg.AddHandler(GuildCreateHandlerFunc(servers))
