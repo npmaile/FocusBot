@@ -31,6 +31,7 @@ type Guild struct {
 //todo: Currently it re-runs the initialization routine every time someone enters or leaves a channel. It should be more exact in what happens.
 
 func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
+	log.Printf("inside of getServerStateInTheRightPlace\n")
 	err := dg.RequestGuildMembers(server.Config.ID, "", 0, "", true)
 	if err != nil {
 		log.Printf("error requesting guild members for server %s: %s", server.Config.ID, err.Error())
@@ -145,7 +146,9 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 
 	// add the users struct to the server for lookups once it comes from the members request above
 	// todo: abstract the following routine to it's own function
+	log.Printf("waiting for members chan\n")
 	memberstore := <-server.MembersChan
+	log.Printf("got members chan\n")
 	for _, wc := range server.focusRooms {
 		server.AssignRole(dg, wc, memberstore)
 	}

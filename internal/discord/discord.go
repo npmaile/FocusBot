@@ -103,7 +103,6 @@ func GuildVoiceStateUpdateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session,
 		g, ok := mg.g[vs.GuildID]
 		if !ok {
 			fmt.Println("failed to get a guild from the list")
-			// ignore this
 			return
 		}
 		g.VoiceStateUpdate <- vs
