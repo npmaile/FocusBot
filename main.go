@@ -15,8 +15,6 @@ import (
 
 const version = "1"
 
-
-
 func main() {
 	logerooni.Info("starting wagebot version " + version)
 	configPath := os.Getenv("CONFIG_PATH")
@@ -66,7 +64,7 @@ func main() {
 	}
 
 	// todo: the entire management interface
-	log.Info("Listening on :8080")
+	logerooni.Info("Listening on :8080")
 	http.HandleFunc("/link", webServer.ServeLinkPageFunc(clientID))
 	http.ListenAndServe(":8080", nil)
 }
