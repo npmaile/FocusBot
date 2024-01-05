@@ -2,12 +2,12 @@ package guild
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/npmaile/wagebot/internal/models"
+	"github.com/npmaile/wagebot/pkg/logerooni"
 )
 
 func NewFromConfig(c *models.GuildConfig) *Guild {
@@ -31,10 +31,10 @@ type Guild struct {
 //todo: Currently it re-runs the initialization routine every time someone enters or leaves a channel. It should be more exact in what happens.
 
 func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
-	log.Printf("inside of getServerStateInTheRightPlace\n")
+	logerooni.Debug("inside of getServerStateInTheRightPlace")
 	err := dg.RequestGuildMembers(server.Config.ID, "", 0, "", true)
 	if err != nil {
-		log.Printf("error requesting guild members for server %s: %s", server.Config.ID, err.Error())
+		logerooni.Errorf("error requesting guild members for server %s: %s", server.Config.ID, err.Error())
 	}
 	// add the guild struct to the server once it comes in from the guildCreate channel
 	if !server.Initialized {
@@ -53,6 +53,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	server.RefreshChannelState(dg, guild)
 
 	// todo: abstract the following routine to it's own function
+	logerooni.Debug("looping through voice states")
 	for _, voice_state := range guild.VoiceStates {
 		targetCage, ok := server.focusRooms[voice_state.ChannelID]
 		if !ok {
@@ -63,6 +64,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	}
 
 	// todo: abstract the following routine to it's own function
+	logerooni.Debug("marking rooms for deletion")
 	for _, wc := range server.focusRooms {
 		// if there's no one in them, delete the empties (and roles) save for the first one
 		if len(wc.Users) == 0 && wc.Number != 0 {
@@ -74,6 +76,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	var lowest *models.FocusRoom
 
 	// todo: abstract the following routine to it's own function
+	logerooni.Debug("Pardoning one room")
 	for _, wc := range server.focusRooms {
 		if len(wc.Users) != 0 {
 			continue
@@ -87,7 +90,6 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 		}
 		wc.MarkDelete = true
 	}
-
 	if lowest != nil {
 		lowest.MarkDelete = false
 		lowest.MarkRoleDelete = true
@@ -97,22 +99,24 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	// todo: abstract the following routines to it's own function
 	for _, wc := range server.focusRooms {
 		if wc.MarkDelete {
+			logerooni.Debugf("deleting channel %s in server %s", wc.ChannelStruct.ID, server.Config.ID)
 			_, err = dg.ChannelDelete(wc.ChannelStruct.ID)
 			if err != nil {
-				log.Printf("unable to delete channel with id %s: %s\n", wc.ChannelStruct.ID, err.Error())
+				logerooni.Errorf("unable to delete channel with id %s: %s\n", wc.ChannelStruct.ID, err.Error())
 			}
 			if wc.Role != nil {
 				err = dg.GuildRoleDelete(guild.ID, wc.Role.ID)
 				if err != nil {
-					log.Printf("unable to delete role with id %s: %s\n", wc.ChannelStruct.ID, err.Error())
+					logerooni.Errorf("unable to delete role with id %s: %s\n", wc.ChannelStruct.ID, err.Error())
 				}
 			}
 			delete(server.focusRooms, wc.ChannelStruct.ID)
 		} else if wc.MarkRoleDelete {
+			logerooni.Debugf("deleting role %s in server %s", wc.Role.ID, server.Config.ID)
 			if wc.Role != nil {
 				err = dg.GuildRoleDelete(guild.ID, wc.Role.ID)
 				if err != nil {
-					log.Printf("unable to delete role with id %s: %s\n", wc.ChannelStruct.ID, err.Error())
+					logerooni.Errorf("unable to delete role with id %s: %s\n", wc.ChannelStruct.ID, err.Error())
 				}
 				wc.Role = nil
 			}
@@ -146,9 +150,9 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 
 	// add the users struct to the server for lookups once it comes from the members request above
 	// todo: abstract the following routine to it's own function
-	log.Printf("waiting for members chan\n")
+	logerooni.Debug("waiting for members chan\n")
 	memberstore := <-server.MembersChan
-	log.Printf("got members chan\n")
+	logerooni.Debug("got members chan\n")
 	for _, wc := range server.focusRooms {
 		server.AssignRole(dg, wc, memberstore)
 	}
@@ -156,20 +160,19 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 }
 
 func (server *Guild) AssignRole(dg *discordgo.Session, wc *models.FocusRoom, memberstore *discordgo.GuildMembersChunk) {
+	logerooni.Debugf("AssignRole called for server %s, focusroom #%d usercount %d", server.Config.ID, wc.Number, len(wc.Users))
 	if wc.Role == nil {
 		wc.Role = server.CreateRole(dg, wc.Number)
 		if wc.Role == nil {
 			return
 		}
 	}
-	fmt.Printf("wc %d, usercount %d, role %s\n", wc.Number, len(wc.Users), wc.Role.Name)
 	if len(wc.Users) == 0 {
 		return
 	}
 	userfound := false
 searchForUserWithRole:
 	for _, user := range wc.Users {
-		fmt.Printf("%#v", user)
 		for _, role := range lookupUserRoles(memberstore, user) {
 			if role == wc.Role.ID {
 				userfound = true
@@ -177,13 +180,14 @@ searchForUserWithRole:
 			}
 		}
 	}
+
 	if !userfound {
 		//give user[0] the role
 		err := dg.GuildMemberRoleAdd(server.Config.ID, wc.Users[0], wc.Role.ID)
 		if err != nil {
-			log.Printf("unable to add role to guild member: %s", err.Error())
+			logerooni.Errorf("unable to add role to guild member: %s", err.Error())
 		} else {
-			log.Printf("assigned role %s to user %s", wc.Role.ID, wc.Users[0])
+			logerooni.Debugf("assigned role %s to user %s", wc.Role.ID, wc.Users[0])
 		}
 
 	}
@@ -192,8 +196,8 @@ searchForUserWithRole:
 
 // bug: roles not being given out
 // bug: need to create role for channels missing roles
-
 func (server *Guild) CreateNextChannel(dg *discordgo.Session, channelParentID string) {
+	logerooni.Debugf("CreateNextChannel called in server %s", server.Config.ID)
 	// select the lowest unused number here
 	arr := make([]bool, len(server.focusRooms))
 	for _, wc := range server.focusRooms {
@@ -213,6 +217,7 @@ func (server *Guild) CreateNextChannel(dg *discordgo.Session, channelParentID st
 	}
 	role := server.CreateRole(dg, newNumber)
 	//todo: set up something to listen for the creation to be confirmed and act on it instead of sleeping
+	logerooni.Debugf("Creating Channel number %d for server %s", newNumber, server.Config.ID)
 	channel, err := dg.GuildChannelCreateComplex(server.Config.ID, discordgo.GuildChannelCreateData{
 		Name:     server.Config.ChannelPrefix + strconv.Itoa(newNumber),
 		Type:     discordgo.ChannelTypeGuildVoice,
@@ -220,14 +225,14 @@ func (server *Guild) CreateNextChannel(dg *discordgo.Session, channelParentID st
 		ParentID: channelParentID,
 	})
 	if err != nil {
-		log.Printf("unable to create new channel: %s ", err.Error())
+		logerooni.Errorf("unable to create new channel: %s ", err.Error())
 	}
 
 	deny := int64(0)
 	allow := int64(16777472)
 	err = dg.ChannelPermissionSet(channel.ID, role.ID, discordgo.PermissionOverwriteTypeRole, allow, deny)
 	if err != nil {
-		log.Printf("unable to set perms on new channel: %s", err.Error())
+		logerooni.Errorf("unable to set perms on new channel: %s", err.Error())
 	}
 	server.focusRooms[channel.ID] = &models.FocusRoom{
 		ChannelStruct: channel,
@@ -240,6 +245,7 @@ func (server *Guild) CreateNextChannel(dg *discordgo.Session, channelParentID st
 }
 
 func (server *Guild) CreateRole(dg *discordgo.Session, number int) *discordgo.Role {
+	logerooni.Debugf("CreateRoleCalled for number %d in server %s", number, server.Config.ID)
 	var color = 69
 	var hoist = false
 	var mentionable = false
@@ -252,28 +258,30 @@ func (server *Guild) CreateRole(dg *discordgo.Session, number int) *discordgo.Ro
 		Mentionable: &mentionable,
 	})
 	if err != nil {
-		log.Printf("unable to create role: %s", err.Error())
+		logerooni.Errorf("unable to create role: %s", err.Error())
 	} else {
-		log.Printf("Created role %s in guild %s", role.Name, server.Config.ID)
+		logerooni.Debugf("Created role %s in guild %s", role.Name, server.Config.ID)
 	}
 	return role
 }
 
 func (server *Guild) RefreshChannelState(dg *discordgo.Session, guild *discordgo.Guild) {
+	logerooni.Debugf("RefreshChannelState called in guild %s", server.Config.ID)
 	server.focusRooms = make(map[string]*models.FocusRoom)
 	for _, c := range guild.Channels {
 		if c.Type == discordgo.ChannelTypeGuildVoice && strings.HasPrefix(c.Name, server.Config.ChannelPrefix) {
 			number, err := numberFromChannelName(server.Config.ChannelPrefix, c.Name)
 			if err != nil {
-				log.Printf("Unable to get channel number from channel name %s: %s", c.Name, err.Error())
+				logerooni.Errorf("Unable to get channel number from channel name %s: %s", c.Name, err.Error())
 			}
 			// check for corresponding role
+			logerooni.Debugf("checking for role associated with focus room %d in server %s", number, server.Config.ID)
 			var targetRole *discordgo.Role
 			for _, role := range guild.Roles {
 				var rolenumber int
 				rolenumber, err = numberFromChannelName(server.Config.RolePrefix, role.Name)
 				if err != nil {
-					// probably not the role we're looking for
+					// not the role we're looking for
 					continue
 				} else if rolenumber == number {
 					targetRole = role
@@ -294,10 +302,11 @@ func (server *Guild) RefreshChannelState(dg *discordgo.Session, guild *discordgo
 }
 
 func (server Guild) SetOffServerProcessing(dg *discordgo.Session) {
+	logerooni.Debugf("Starting processing for guild %s", server.Config.ID)
 	server.getServerStateInTheRightPlace(dg)
 	for {
 		vsu := <-server.VoiceStateUpdate
-		log.Printf("user %s %s", vsu.UserID, deltaVoiceStateStatusBullshit(vsu))
+		logerooni.Debugf("voice state update receieved for user %s %s", vsu.UserID, deltaVoiceStateStatusBullshit(vsu))
 		server.getServerStateInTheRightPlace(dg)
 	}
 }
@@ -311,7 +320,6 @@ func deltaVoiceStateStatusBullshit(vsu *discordgo.VoiceStateUpdate) string {
 		return fmt.Sprintf("left %s and joined %s", vsu.BeforeUpdate.ChannelID, vsu.ChannelID)
 	}
 	return "did nothing of consequence"
-
 }
 
 func numberFromChannelName(prefix string, fullname string) (int, error) {

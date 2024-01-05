@@ -3,20 +3,20 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"log"
 
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/npmaile/wagebot/internal/models"
+	slog "github.com/npmaile/wagebot/pkg/logerooni"
 )
-
 
 type sqliteStore struct {
 	storage *sql.DB
 }
 
-//  todo: use proper logging once it exists
+// todo: use proper logging once it exists
 func NewSqliteStore(filePath string) (DataStore, error) {
+	slog.Debug("NewSqliteStore called")
 	// add the filepath to store the databe to the config toml
 	db, err := sql.Open("sqlite3", filePath)
 	if err != nil {
@@ -33,6 +33,7 @@ func NewSqliteStore(filePath string) (DataStore, error) {
 }
 
 func (s *sqliteStore) GetServerConfiguration(guildID string) (models.GuildConfig, error) {
+	slog.Debug("GetServerConfiguration called")
 	row := s.storage.QueryRow(`SELECT
 	id, channelPrefix, rolePrefix, channelCategory
 	FROM
@@ -52,6 +53,7 @@ func (s *sqliteStore) GetServerConfiguration(guildID string) (models.GuildConfig
 }
 
 func (s *sqliteStore) GetAllServerConfigs() ([]*models.GuildConfig, error) {
+	slog.Debug("GetAllServerConfigs called")
 	rows, err := s.storage.Query(`SELECT
 	id, channelPrefix, rolePrefix, channelCategory
 	FROM
@@ -68,8 +70,8 @@ func (s *sqliteStore) GetAllServerConfigs() ([]*models.GuildConfig, error) {
 		}
 		ret = append(ret, &s)
 	}
-	for _, guild := range ret{
-		log.Println("loaded config for guild: %s", guild.ID)
+	for _, guild := range ret {
+		slog.Debug(fmt.Sprintf("loaded config for guild: %s", guild.ID))
 	}
 	return ret, nil
 

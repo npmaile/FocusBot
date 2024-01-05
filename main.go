@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"net/http"
 	"os"
 
@@ -10,18 +8,21 @@ import (
 	"github.com/npmaile/wagebot/internal/discord"
 	"github.com/npmaile/wagebot/internal/guild"
 	webServer "github.com/npmaile/wagebot/internal/web_server"
+	"github.com/npmaile/wagebot/pkg/logerooni"
 
 	"github.com/spf13/viper"
 )
 
 const version = "1"
 
+
+
 func main() {
-	fmt.Println("starting wagebot version " + version)
+	logerooni.Info("starting wagebot version " + version)
 	configPath := os.Getenv("CONFIG_PATH")
 	if configPath == "" {
 		configPath = "."
-}
+	}
 	// config boilerplate
 	viper.SetConfigName("config")
 	viper.SetConfigType("toml")
@@ -29,22 +30,22 @@ func main() {
 	err := viper.ReadInConfig()
 	if err != nil {
 		//todo: better logging library and configuraion to handle log levels
-		log.Fatalf("unable to read configuration: %s", err.Error())
+		logerooni.Fatalf("unable to read configuration: %s", err.Error())
 	}
 
-	log.Println("starting up")
+	logerooni.Info("starting up")
 	clientID := viper.GetString("bot.app_id")
-	token:= viper.GetString("bot.api_token")
+	token := viper.GetString("bot.api_token")
 
 	//todo: add other database backend options to configuration
 	db, err := db.NewSqliteStore(viper.GetString("store.path"))
 	if err != nil {
-		log.Fatalf("unable to start: %s", err.Error())
+		logerooni.Fatalf("unable to start: %s", err.Error())
 	}
 
 	serverConfigs, err := db.GetAllServerConfigs()
 	if err != nil {
-		log.Fatalf("unable to start: %s", err.Error())
+		logerooni.Fatalf("unable to start: %s", err.Error())
 	}
 	//todo: abstract this out to another package
 	servers := []*guild.Guild{}
@@ -55,7 +56,7 @@ func main() {
 
 	dg, err := discord.InitializeDG(servers, token)
 	if err != nil {
-		log.Fatalf("unable to initialize discordgo client: %s", err.Error())
+		logerooni.Fatalf("unable to initialize discordgo client: %s", err.Error())
 	}
 
 	for _, s := range servers {
@@ -65,7 +66,7 @@ func main() {
 	}
 
 	// todo: the entire management interface
-	log.Println("Listening on :8080")
+	log.Info("Listening on :8080")
 	http.HandleFunc("/link", webServer.ServeLinkPageFunc(clientID))
 	http.ListenAndServe(":8080", nil)
 }
