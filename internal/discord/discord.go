@@ -78,9 +78,7 @@ func ReadyHandlerFunc(readychan chan *discordgo.Ready) func(_ *discordgo.Session
 func GuildCreateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
 	return func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
 		logerooni.Debugf("GuildCreateHandler Event fired for guild %s", gc.ID)
-		mg.mtex.Lock()
-		server, ok := mg.g[gc.ID]
-		mg.mtex.Unlock()
+		server, ok := mg.lookupguild(gc.ID)
 		if !ok {
 			logerooni.Errorf("unable to route VoiceStateUpdate to guild process %s, guildID not in process store", gc.ID)
 			return
@@ -94,8 +92,7 @@ func GuildCreateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session, gc *disco
 func GuildMembersChunkFunc(mg *mtexGuilds) func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
 	return func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
 		logerooni.Debugf("GuildMembersChunck Event fired for guild %s", gm.GuildID)
-		server, ok := mg.g[gm.GuildID]
-		mg.mtex.Unlock()
+		server, ok := mg.lookupguild(gm.GuildID)
 		if !ok {
 			logerooni.Errorf("unable to route GuildMembersChunk to guild process %s, guildID not in process store", gm.GuildID)
 			return
@@ -108,9 +105,7 @@ func GuildMembersChunkFunc(mg *mtexGuilds) func(_ *discordgo.Session, gm *discor
 func GuildVoiceStateUpdateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
 	return func(_ *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
 		logerooni.Debugf("GuildVoiceStateUpate Event fired for guild %s", vs.GuildID)
-		mg.mtex.Lock()
-		g, ok := mg.g[vs.GuildID]
-		mg.mtex.Unlock()
+		g, ok := mg.lookupguild(vs.GuildID)
 		if !ok {
 			logerooni.Errorf("unable to route VoiceStateUpdate to guild process %s, guildID not in process store", vs.GuildID)
 			return
@@ -125,4 +120,11 @@ func GuildVoiceStateUpdateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session,
 type mtexGuilds struct {
 	g    map[string]*guild.Guild
 	mtex sync.Mutex
+}
+
+func (m *mtexGuilds) lookupguild(s string) (*guild.Guild, bool) {
+	m.mtex.Lock()
+	g, ok := m.g[s]
+	m.mtex.Unlock()
+	return g, ok
 }
