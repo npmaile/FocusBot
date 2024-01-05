@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,7 +14,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+const version = "1"
+
 func main() {
+	fmt.Println("starting wagebot version " + version)
 	configPath := os.Getenv("CONFIG_PATH")
 	if configPath == "" {
 		configPath = "."
