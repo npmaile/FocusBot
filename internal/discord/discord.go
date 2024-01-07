@@ -44,6 +44,8 @@ func InitializeDG(servers []*guild.Guild, token string) (*models.GlobalConfig, e
 	dg.AddHandler(GuildCreateHandlerFunc(&mg))
 	dg.AddHandler(GuildMembersChunkFunc(&mg))
 	dg.AddHandler(GuildVoiceStateUpdateHandlerFunc(&mg))
+	dg.LogLevel = discordgo.LogDebug
+
 
 	logerooni.Debug("Opening discordgo websocket connection")
 	err = dg.Open()
