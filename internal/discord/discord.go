@@ -19,6 +19,9 @@ func InitializeDG(servers []*guild.Guild, token string) (*models.GlobalConfig, e
 	}
 
 	dg.SyncEvents = false
+	dg.LogLevel = discordgo.LogInformational
+	dg.ShouldReconnectOnError = true
+	dg.ShouldRetryOnRateLimit = true
 	dg.StateEnabled = true
 	dg.State.TrackChannels = true
 	dg.State.TrackMembers = true
@@ -28,8 +31,6 @@ func InitializeDG(servers []*guild.Guild, token string) (*models.GlobalConfig, e
 
 	// todo: get only the necessary intents
 	dg.Identify.Intents = discordgo.IntentsAll
-
-	dg.ShouldReconnectOnError = true
 
 	readychan := make(chan *discordgo.Ready)
 	dg.AddHandler(ReadyHandlerFunc(readychan))
@@ -80,7 +81,7 @@ func ReadyHandlerFunc(readychan chan *discordgo.Ready) func(_ *discordgo.Session
 func GuildCreateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
 	return func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
 		logerooni.Debugf("GuildCreateHandler Event fired for guild %s", gc.ID)
-		server, ok := mg.lookupguild(gc.ID)
+		server, ok := mg.lookupguild("GuildCreateHandlerFunc", gc.ID)
 		if !ok {
 			logerooni.Errorf("unable to route VoiceStateUpdate to guild process %s, guildID not in process store", gc.ID)
 			return
@@ -94,7 +95,7 @@ func GuildCreateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session, gc *disco
 func GuildMembersChunkFunc(mg *mtexGuilds) func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
 	return func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
 		logerooni.Debugf("GuildMembersChunck Event fired for guild %s", gm.GuildID)
-		server, ok := mg.lookupguild(gm.GuildID)
+		server, ok := mg.lookupguild("GuildMembersChunkFunc", gm.GuildID)
 		if !ok {
 			logerooni.Errorf("unable to route GuildMembersChunk to guild process %s, guildID not in process store", gm.GuildID)
 			return
@@ -107,7 +108,7 @@ func GuildMembersChunkFunc(mg *mtexGuilds) func(_ *discordgo.Session, gm *discor
 func GuildVoiceStateUpdateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
 	return func(_ *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
 		logerooni.Debugf("GuildVoiceStateUpate Event fired for guild %s", vs.GuildID)
-		g, ok := mg.lookupguild(vs.GuildID)
+		g, ok := mg.lookupguild("GuildVoiceStateUpdateHandlerFunc", vs.GuildID)
 		if !ok {
 			logerooni.Errorf("unable to route VoiceStateUpdate to guild process %s, guildID not in process store", vs.GuildID)
 			return
@@ -124,9 +125,11 @@ type mtexGuilds struct {
 	mtex sync.Mutex
 }
 
-func (m *mtexGuilds) lookupguild(s string) (*guild.Guild, bool) {
+func (m *mtexGuilds) lookupguild(caller string, s string) (*guild.Guild, bool) {
+	logerooni.Debugf("[lookupguild(%s)] %s requested lookup.. locking", caller, caller)
 	m.mtex.Lock()
 	g, ok := m.g[s]
+	logerooni.Debugf("[lookupguild(%s)] Got guildid value %v, ok: %v", caller, g, ok)
 	m.mtex.Unlock()
 	return g, ok
 }

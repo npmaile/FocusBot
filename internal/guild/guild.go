@@ -333,6 +333,7 @@ func numberFromChannelName(prefix string, fullname string) (int, error) {
 
 // lookupUserRoles returns a slice of ids for roles a user has
 func lookupUserRoles(mc *discordgo.GuildMembersChunk, UserID string) []string {
+	logerooni.Debugf("[lookupUserRoles] Looking up user roles for UserID %s", UserID)
 	for _, m := range mc.Members {
 		if UserID == m.User.ID {
 			return m.Roles
