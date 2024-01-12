@@ -2,6 +2,7 @@ package logerooni
 
 import (
 	"fmt"
+	"github.com/bwmarrin/discordgo"
 	log "log/slog"
 	"os"
 	"strings"
@@ -19,6 +20,23 @@ func init() {
 
 // this is the way the go foundation wants me to do this.
 // https://pkg.go.dev/log/slog#hdr-Wrapping_output_methods
+
+func DiscordLogger(msgL int, _ int, format string, a ...interface{}) {
+	switch msgL {
+	case discordgo.LogDebug:
+		{
+			Debugf(format, a...)
+		}
+	case discordgo.LogError:
+		{
+			Errorf(format, a...)
+		}
+	case discordgo.LogInformational:
+		{
+			Infof(format, a...)
+		}
+	}
+}
 
 func Debug(msg string) {
 	log.Debug(msg)
