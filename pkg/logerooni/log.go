@@ -25,15 +25,15 @@ func DiscordLogger(msgL int, _ int, format string, a ...interface{}) {
 	switch msgL {
 	case discordgo.LogDebug:
 		{
-			Debugf(format, a...)
+			Debugf("log from discord: " + format, a...)
 		}
 	case discordgo.LogError:
 		{
-			Errorf(format, a...)
+			Errorf("log from discord: " + format, a...)
 		}
 	case discordgo.LogInformational:
 		{
-			Infof(format, a...)
+			Infof("log from discord: " + format, a...)
 		}
 	}
 }
