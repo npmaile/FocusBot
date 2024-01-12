@@ -108,7 +108,7 @@ func AdHocSetUpGuild(mg *mtexGuilds, db db.DataStore, ID string, dg *discordgo.S
 	}
 	server := guild.NewFromConfig(&guildConfig)
 	mg.addGuild(server)
-	server.SetOffServerProcessing(dg)
+	go server.SetOffServerProcessing(dg)
 	return server, nil
 }
 
