@@ -246,6 +246,7 @@ func (server *Guild) CreateNextChannel(dg *discordgo.Session, channelParentID st
 }
 
 func (server *Guild) GetRoomZeroPosition() int {
+	logerooni.Debugf("asking for room positoin zero in server %s", server.Config.ID)
 	roomzero := ""
 	for id, room := range server.focusRooms {
 		if room.Number == 0 {
@@ -253,10 +254,13 @@ func (server *Guild) GetRoomZeroPosition() int {
 		}
 	}
 	if roomzero == "" {
+		logerooni.Debugf("creating room zero in server %s", server.Config.ID)
 		// return zero just to dump it at the top
 		return 0
 	}
-	return server.focusRooms[roomzero].ChannelStruct.Position
+	ret := server.focusRooms[roomzero].ChannelStruct.Position
+	logerooni.Debugf("room index zero is at position %d in server %s", ret, server.Config.ID)
+	return ret
 }
 
 func (server *Guild) CreateRole(dg *discordgo.Session, number int) *discordgo.Role {

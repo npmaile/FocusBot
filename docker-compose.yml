@@ -3,6 +3,7 @@ services:
     restart: always
     environment:
       - CONFIG_PATH=/app/stuff
+      - LOG_LEVEL=debug
     image: "ghcr.io/npmaile/focusbot/focusbot:latest"
     volumes:
       - ./stuff:/app/stuff
