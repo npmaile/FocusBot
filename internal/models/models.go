@@ -20,8 +20,8 @@ type GuildConfig struct {
 func DefaultGuildConfig(id string) GuildConfig {
 	return GuildConfig{
 		ID:              id,
-		ChannelPrefix:   "focus room",
-		RolePrefix:      "focus owner",
+		ChannelPrefix:   "focus room ",
+		RolePrefix:      "focus owner ",
 	}
 
 }
