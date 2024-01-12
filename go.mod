@@ -1,4 +1,4 @@
-module github.com/npmaile/wagebot
+module github.com/npmaile/focusbot
 
 go 1.21.3
 

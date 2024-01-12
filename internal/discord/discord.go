@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/npmaile/wagebot/internal/guild"
-	"github.com/npmaile/wagebot/internal/models"
-	"github.com/npmaile/wagebot/pkg/logerooni"
+	"github.com/npmaile/focusbot/internal/guild"
+	"github.com/npmaile/focusbot/internal/models"
+	"github.com/npmaile/focusbot/pkg/logerooni"
 )
 
 func InitializeDG(servers []*guild.Guild, token string) (*models.GlobalConfig, error) {

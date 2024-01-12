@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/npmaile/wagebot/internal/models"
-	"github.com/npmaile/wagebot/pkg/logerooni"
+	"github.com/npmaile/focusbot/internal/models"
+	"github.com/npmaile/focusbot/pkg/logerooni"
 )
 
 func NewFromConfig(c *models.GuildConfig) *Guild {
@@ -72,7 +73,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 		}
 	}
 
-	// get the lowest numbered wage cage and don't delete it
+	// get the lowest numbered focus cage and don't delete it
 	var lowest *models.FocusRoom
 
 	// todo: abstract the following routine to it's own function
@@ -142,7 +143,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 			break
 		}
 	}
-	// create another wage cage
+	// create another focus cage
 	// create role as well (though this should probably be created immediately prior to giving it out
 	if shouldCreateNew {
 		server.CreateNextChannel(dg, channelParentID)
@@ -307,7 +308,15 @@ func (server Guild) SetOffServerProcessing(dg *discordgo.Session) {
 	for {
 		vsu := <-server.VoiceStateUpdate
 		logerooni.Debugf("voice state update receieved for user %s %s", vsu.UserID, deltaVoiceStateStatusBullshit(vsu))
-		server.getServerStateInTheRightPlace(dg)
+		done := make(chan struct{})
+		go func(done chan struct{}) {
+			server.getServerStateInTheRightPlace(dg)
+			done <- struct{}{}
+		}(done)
+		select {
+		case <-time.After(10 * time.Second):
+		case <-done:
+		}
 	}
 }
 

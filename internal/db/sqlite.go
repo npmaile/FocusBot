@@ -7,7 +7,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/npmaile/wagebot/internal/models"
-	slog "github.com/npmaile/wagebot/pkg/logerooni"
+	slog "github.com/npmaile/focusbot/pkg/logerooni"
 )
 
 type sqliteStore struct {

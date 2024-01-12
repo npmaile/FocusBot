@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/npmaile/wagebot/internal/db"
-	"github.com/npmaile/wagebot/internal/discord"
-	"github.com/npmaile/wagebot/internal/guild"
-	webServer "github.com/npmaile/wagebot/internal/web_server"
-	"github.com/npmaile/wagebot/pkg/logerooni"
+	"github.com/npmaile/focusbot/internal/db"
+	"github.com/npmaile/focusbot/internal/discord"
+	"github.com/npmaile/focusbot/internal/guild"
+	webServer "github.com/npmaile/focusbot/internal/web_server"
+	"github.com/npmaile/focusbot/pkg/logerooni"
 
 	"github.com/spf13/viper"
 )
