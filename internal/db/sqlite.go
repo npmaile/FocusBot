@@ -6,7 +6,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/npmaile/wagebot/internal/models"
+	"github.com/npmaile/focusbot/internal/models"
 	slog "github.com/npmaile/focusbot/pkg/logerooni"
 )
 

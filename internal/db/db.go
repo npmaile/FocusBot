@@ -1,7 +1,7 @@
 package db
 
 import (
-	"github.com/npmaile/wagebot/internal/models"
+	"github.com/npmaile/focusbot/internal/models"
 )
 
 type DataStore interface {
