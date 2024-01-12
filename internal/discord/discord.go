@@ -6,12 +6,13 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/npmaile/focusbot/internal/db"
 	"github.com/npmaile/focusbot/internal/guild"
 	"github.com/npmaile/focusbot/internal/models"
 	"github.com/npmaile/focusbot/pkg/logerooni"
 )
 
-func InitializeDG(servers []*guild.Guild, token string) (*models.GlobalConfig, error) {
+func InitializeDG(servers []*guild.Guild, token string, db db.DataStore) (*models.GlobalConfig, error) {
 	logerooni.Debug("InitializeDG called")
 	dg, err := discordgo.New("Bot " + token)
 	if err != nil {
@@ -42,11 +43,10 @@ func InitializeDG(servers []*guild.Guild, token string) (*models.GlobalConfig, e
 		mg.g[s.Config.ID] = s
 	}
 
-	dg.AddHandler(GuildCreateHandlerFunc(&mg))
+	dg.AddHandler(GuildCreateHandlerFunc(&mg, db))
 	dg.AddHandler(GuildMembersChunkFunc(&mg))
 	dg.AddHandler(GuildVoiceStateUpdateHandlerFunc(&mg))
 	discordgo.Logger = logerooni.DiscordLogger
-
 
 	logerooni.Debug("Opening discordgo websocket connection")
 	err = dg.Open()
@@ -78,18 +78,42 @@ func ReadyHandlerFunc(readychan chan *discordgo.Ready) func(_ *discordgo.Session
 }
 
 // called at the beginning for each guild connected
-func GuildCreateHandlerFunc(mg *mtexGuilds) func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
-	return func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
+func GuildCreateHandlerFunc(mg *mtexGuilds, db db.DataStore) func(_ *discordgo.Session, gc *discordgo.GuildCreate) {
+	return func(dg *discordgo.Session, gc *discordgo.GuildCreate) {
 		logerooni.Debugf("GuildCreateHandler Event fired for guild %s", gc.ID)
 		server, ok := mg.lookupguild("GuildCreateHandlerFunc", gc.ID)
 		if !ok {
-			logerooni.Errorf("unable to route VoiceStateUpdate to guild process %s, guildID not in process store", gc.ID)
-			return
+			var err error
+			server, err = AdHocSetUpGuild(mg, db, gc.ID, dg)
+			if err != nil {
+				logerooni.Errorf("unable to route VoiceStateUpdate to guild process %s, guildID not in process store", gc.ID)
+				return
+			}
 		}
 		server.GuildChan <- gc
 		logerooni.Debugf("Routed GuildCreate to guild process %s", gc.ID)
 	}
 }
+
+func AdHocSetUpGuild(mg *mtexGuilds, db db.DataStore, ID string, dg *discordgo.Session) (*guild.Guild, error) {
+	logerooni.Infof("AdHocSetUpGuild called for guildID: %s", ID)
+	guildConfig, err := db.GetServerConfiguration(ID)
+	if err == nil {
+		return guild.NewFromConfig(&guildConfig), nil
+	}
+	guildConfig = models.DefaultGuildConfig(ID)
+	err = db.AddServer(guildConfig)
+	if err != nil {
+		return nil, fmt.Errorf("unable to store new guild %s", ID)
+	}
+	server := guild.NewFromConfig(&guildConfig)
+	mg.addGuild(server)
+	server.SetOffServerProcessing(dg)
+	return server, nil
+}
+
+// 1. add the new guild to the database
+// 2. start processing the guild
 
 // called when asked for and necessary for getting membership information
 func GuildMembersChunkFunc(mg *mtexGuilds) func(_ *discordgo.Session, gm *discordgo.GuildMembersChunk) {
@@ -132,4 +156,10 @@ func (m *mtexGuilds) lookupguild(caller string, s string) (*guild.Guild, bool) {
 	logerooni.Debugf("[lookupguild(%s)] Got guildid value %v, ok: %v", caller, g, ok)
 	m.mtex.Unlock()
 	return g, ok
+}
+
+func (m *mtexGuilds) addGuild(guild *guild.Guild) {
+	m.mtex.Lock()
+	m.g[guild.Config.ID] = guild
+	m.mtex.Unlock()
 }

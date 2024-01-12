@@ -52,7 +52,7 @@ func main() {
 		servers = append(servers, g)
 	}
 
-	dg, err := discord.InitializeDG(servers, token)
+	dg, err := discord.InitializeDG(servers, token, db)
 	if err != nil {
 		logerooni.Fatalf("unable to initialize discordgo client: %s", err.Error())
 	}

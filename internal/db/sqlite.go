@@ -7,6 +7,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/npmaile/focusbot/internal/models"
+	"github.com/npmaile/focusbot/pkg/logerooni"
 	slog "github.com/npmaile/focusbot/pkg/logerooni"
 )
 
@@ -75,4 +76,32 @@ func (s *sqliteStore) GetAllServerConfigs() ([]*models.GuildConfig, error) {
 	}
 	return ret, nil
 
+}
+
+func (s *sqliteStore) AddServer(cfg models.GuildConfig) error {
+	_, err := s.storage.Exec(`INSERT 
+		INTO servers (id, channelPrefix, rolePrefix, channelCategory)
+		values (?,?,?,?)
+	`, cfg.ID, cfg.ChannelPrefix, cfg.RolePrefix, cfg.ChannelCategory)
+	if err != nil {
+		logerooni.Errorf("unable to insert new entry to sqlite data store: %s", err.Error())
+		return err
+	}
+	return nil
+}
+
+func (s *sqliteStore) UpdateServer(cfg models.GuildConfig) error {
+	_, err := s.storage.Exec(`UPDATE	
+		servers 
+		SET
+		channelPrefix = ?,
+		rolePrefix = ?,
+		channelCategory = ?
+		WHERE
+		id =?`, cfg.ChannelPrefix, cfg.RolePrefix, cfg.ChannelCategory, cfg.ID)
+	if err != nil {
+		logerooni.Errorf("unable to update entry to sqlite data store: %s", err.Error())
+		return err
+	}
+	return nil
 }
