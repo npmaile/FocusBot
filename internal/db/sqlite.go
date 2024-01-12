@@ -80,7 +80,7 @@ func (s *sqliteStore) GetAllServerConfigs() ([]*models.GuildConfig, error) {
 func (s *sqliteStore) AddServer(cfg models.GuildConfig) error {
 	_, err := s.storage.Exec(`INSERT 
 		INTO servers (id, channelPrefix, rolePrefix)
-		values (?,?,?,?)
+		values (?,?,?)
 	`, cfg.ID, cfg.ChannelPrefix, cfg.RolePrefix)
 	if err != nil {
 		slog.Errorf("unable to insert new entry to sqlite data store: %s", err.Error())
