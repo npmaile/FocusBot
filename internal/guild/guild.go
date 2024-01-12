@@ -220,10 +220,10 @@ func (server *Guild) CreateNextChannel(dg *discordgo.Session, channelParentID st
 	//todo: set up something to listen for the creation to be confirmed and act on it instead of sleeping
 	logerooni.Debugf("Creating Channel number %d for server %s", newNumber, server.Config.ID)
 	channel, err := dg.GuildChannelCreateComplex(server.Config.ID, discordgo.GuildChannelCreateData{
-		Name:     server.Config.ChannelPrefix + strconv.Itoa(newNumber),
-		Type:     discordgo.ChannelTypeGuildVoice,
-		Topic:    "Focus",
-		Position: server.GetRoomZeroPosition() + newNumber,
+		Name:            server.Config.ChannelPrefix + strconv.Itoa(newNumber),
+		Type:            discordgo.ChannelTypeGuildVoice,
+		Topic:           "Focus",
+		ParentID: server.GetRoomZeroCategory(),
 	})
 	if err != nil {
 		logerooni.Errorf("unable to create new channel: %s ", err.Error())
@@ -245,8 +245,8 @@ func (server *Guild) CreateNextChannel(dg *discordgo.Session, channelParentID st
 
 }
 
-func (server *Guild) GetRoomZeroPosition() int {
-	logerooni.Debugf("asking for room positoin zero in server %s", server.Config.ID)
+func (server *Guild) GetRoomZeroCategory() string {
+	logerooni.Debugf("asking for room category for channel zero in server %s", server.Config.ID)
 	roomzero := ""
 	for id, room := range server.focusRooms {
 		if room.Number == 0 {
@@ -254,12 +254,10 @@ func (server *Guild) GetRoomZeroPosition() int {
 		}
 	}
 	if roomzero == "" {
-		logerooni.Debugf("creating room zero in server %s", server.Config.ID)
-		// return zero just to dump it at the top
-		return 0
+		return ""
 	}
-	ret := server.focusRooms[roomzero].ChannelStruct.Position
-	logerooni.Debugf("room index zero is at position %d in server %s", ret, server.Config.ID)
+	ret := server.focusRooms[roomzero].ChannelStruct.ParentID
+	logerooni.Debugf("room index zero has parent %s in server %s", ret, server.Config.ID)
 	return ret
 }
 
