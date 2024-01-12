@@ -15,7 +15,6 @@ type GuildConfig struct {
 	ID              string
 	ChannelPrefix   string
 	RolePrefix      string
-	ChannelCategory string
 }
 
 func DefaultGuildConfig(id string) GuildConfig {
@@ -23,7 +22,6 @@ func DefaultGuildConfig(id string) GuildConfig {
 		ID:              id,
 		ChannelPrefix:   "focus room",
 		RolePrefix:      "focus owner",
-		ChannelCategory: "",
 	}
 
 }

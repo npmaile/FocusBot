@@ -7,7 +7,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/npmaile/focusbot/internal/models"
-	"github.com/npmaile/focusbot/pkg/logerooni"
 	slog "github.com/npmaile/focusbot/pkg/logerooni"
 )
 
@@ -24,7 +23,7 @@ func NewSqliteStore(filePath string) (DataStore, error) {
 		return nil, fmt.Errorf("unable to get new sqlite data store: %s", err.Error())
 	}
 	_, err = db.Exec(`CREATE TABLE if not exists 
-	servers(id TEXT, channelPrefix TEXT, rolePrefix TEXT, channelCategory TEXT)`)
+	servers(id TEXT, channelPrefix TEXT, rolePrefix TEXT)`)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get new sqlite data store: %s", err.Error())
 	}
@@ -36,7 +35,7 @@ func NewSqliteStore(filePath string) (DataStore, error) {
 func (s *sqliteStore) GetServerConfiguration(guildID string) (models.GuildConfig, error) {
 	slog.Debug("GetServerConfiguration called")
 	row := s.storage.QueryRow(`SELECT
-	id, channelPrefix, rolePrefix, channelCategory
+	id, channelPrefix, rolePrefix
 	FROM
 	servers
 	WHERE
@@ -46,7 +45,7 @@ func (s *sqliteStore) GetServerConfiguration(guildID string) (models.GuildConfig
 		return models.GuildConfig{}, fmt.Errorf("unable to get server configuration: %s", err.Error())
 	}
 	var ret models.GuildConfig
-	err = row.Scan(&ret.ID, &ret.ChannelPrefix, &ret.RolePrefix, &ret.ChannelCategory)
+	err = row.Scan(&ret.ID, &ret.ChannelPrefix, &ret.RolePrefix)
 	if err != nil {
 		return models.GuildConfig{}, fmt.Errorf("unable to get server configuration: %s", err.Error())
 	}
@@ -56,7 +55,7 @@ func (s *sqliteStore) GetServerConfiguration(guildID string) (models.GuildConfig
 func (s *sqliteStore) GetAllServerConfigs() ([]*models.GuildConfig, error) {
 	slog.Debug("GetAllServerConfigs called")
 	rows, err := s.storage.Query(`SELECT
-	id, channelPrefix, rolePrefix, channelCategory
+	id, channelPrefix, rolePrefix
 	FROM
 	servers`)
 	if err != nil {
@@ -65,7 +64,7 @@ func (s *sqliteStore) GetAllServerConfigs() ([]*models.GuildConfig, error) {
 	var ret []*models.GuildConfig
 	for rows.Next() {
 		s := models.GuildConfig{}
-		err := rows.Scan(&s.ID, &s.ChannelPrefix, &s.RolePrefix, &s.ChannelCategory)
+		err := rows.Scan(&s.ID, &s.ChannelPrefix, &s.RolePrefix)
 		if err != nil {
 			return nil, fmt.Errorf("unable to scan server configs into struct: %s", err.Error())
 		}
@@ -80,11 +79,11 @@ func (s *sqliteStore) GetAllServerConfigs() ([]*models.GuildConfig, error) {
 
 func (s *sqliteStore) AddServer(cfg models.GuildConfig) error {
 	_, err := s.storage.Exec(`INSERT 
-		INTO servers (id, channelPrefix, rolePrefix, channelCategory)
+		INTO servers (id, channelPrefix, rolePrefix)
 		values (?,?,?,?)
-	`, cfg.ID, cfg.ChannelPrefix, cfg.RolePrefix, cfg.ChannelCategory)
+	`, cfg.ID, cfg.ChannelPrefix, cfg.RolePrefix)
 	if err != nil {
-		logerooni.Errorf("unable to insert new entry to sqlite data store: %s", err.Error())
+		slog.Errorf("unable to insert new entry to sqlite data store: %s", err.Error())
 		return err
 	}
 	return nil
@@ -96,11 +95,10 @@ func (s *sqliteStore) UpdateServer(cfg models.GuildConfig) error {
 		SET
 		channelPrefix = ?,
 		rolePrefix = ?,
-		channelCategory = ?
 		WHERE
-		id =?`, cfg.ChannelPrefix, cfg.RolePrefix, cfg.ChannelCategory, cfg.ID)
+		id =?`, cfg.ChannelPrefix, cfg.RolePrefix)
 	if err != nil {
-		logerooni.Errorf("unable to update entry to sqlite data store: %s", err.Error())
+		slog.Errorf("unable to update entry to sqlite data store: %s", err.Error())
 		return err
 	}
 	return nil

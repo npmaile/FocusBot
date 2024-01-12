@@ -136,17 +136,10 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 		}
 	}
 
-	channelParentID := ""
-	for _, ch := range guild.Channels {
-		if ch.Type == discordgo.ChannelTypeGuildCategory && strings.EqualFold(ch.Name, server.Config.ChannelCategory) {
-			channelParentID = ch.ID
-			break
-		}
-	}
 	// create another focus cage
 	// create role as well (though this should probably be created immediately prior to giving it out
 	if shouldCreateNew {
-		server.CreateNextChannel(dg, channelParentID)
+		server.CreateNextChannel(dg)
 	}
 
 	// add the users struct to the server for lookups once it comes from the members request above
@@ -197,7 +190,7 @@ searchForUserWithRole:
 
 // bug: roles not being given out
 // bug: need to create role for channels missing roles
-func (server *Guild) CreateNextChannel(dg *discordgo.Session, channelParentID string) {
+func (server *Guild) CreateNextChannel(dg *discordgo.Session) {
 	logerooni.Debugf("CreateNextChannel called in server %s", server.Config.ID)
 	// select the lowest unused number here
 	arr := make([]bool, len(server.focusRooms))
