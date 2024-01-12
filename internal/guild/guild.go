@@ -223,7 +223,7 @@ func (server *Guild) CreateNextChannel(dg *discordgo.Session, channelParentID st
 		Name:     server.Config.ChannelPrefix + strconv.Itoa(newNumber),
 		Type:     discordgo.ChannelTypeGuildVoice,
 		Topic:    "Focus",
-		ParentID: channelParentID,
+		Position: server.GetRoomZeroPosition() + newNumber,
 	})
 	if err != nil {
 		logerooni.Errorf("unable to create new channel: %s ", err.Error())
@@ -243,6 +243,20 @@ func (server *Guild) CreateNextChannel(dg *discordgo.Session, channelParentID st
 		MarkDelete:    false,
 	}
 
+}
+
+func (server *Guild) GetRoomZeroPosition() int {
+	roomzero := ""
+	for id, room := range server.focusRooms {
+		if room.Number == 0 {
+			roomzero = id
+		}
+	}
+	if roomzero == "" {
+		// return zero just to dump it at the top
+		return 0
+	}
+	return server.focusRooms[roomzero].ChannelStruct.Position
 }
 
 func (server *Guild) CreateRole(dg *discordgo.Session, number int) *discordgo.Role {
