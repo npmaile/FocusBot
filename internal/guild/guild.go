@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -11,22 +12,78 @@ import (
 	"github.com/npmaile/focusbot/pkg/logerooni"
 )
 
+const staleMembersChunkTime = 2 * time.Second
+
 func NewFromConfig(c *models.GuildConfig) *Guild {
 	return &Guild{
 		GuildChan:        make(chan *discordgo.GuildCreate),
-		MembersChan:      make(chan *discordgo.GuildMembersChunk),
 		VoiceStateUpdate: make(chan *discordgo.VoiceStateUpdate),
+		focusRooms:       map[string]*models.FocusRoom{},
 		Config:           c,
+		Members: membersAbstraction{
+			timeUpdated: time.Time{},
+			members:     map[string]*discordgo.Member{},
+			membersChan: make(chan *discordgo.GuildMembersChunk, 50),
+			mtex:        sync.Mutex{},
+		},
+		Initialized: false,
 	}
 }
 
 type Guild struct {
 	GuildChan        chan *discordgo.GuildCreate
-	MembersChan      chan *discordgo.GuildMembersChunk
 	VoiceStateUpdate chan *discordgo.VoiceStateUpdate
 	focusRooms       map[string]*models.FocusRoom
 	Config           *models.GuildConfig
+	Members          membersAbstraction
 	Initialized      bool
+}
+
+type membersAbstraction struct {
+	timeUpdated time.Time
+	members     map[string]*discordgo.Member
+	membersChan chan *discordgo.GuildMembersChunk
+	mtex        sync.Mutex
+}
+
+func (m *membersAbstraction) WaitForSync() {
+	for m.stale() {
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func (m *membersAbstraction) stale() bool {
+	// this is deceptively difficult to reason about.
+	m.mtex.Lock()
+	ret := m.timeUpdated.Compare(time.Now().Add(-staleMembersChunkTime)) > 0
+	m.mtex.Unlock()
+	return ret
+}
+
+func (m *membersAbstraction) startReceivingMembersUpdates(){
+	for {
+		gmc := <- m.membersChan
+		m.updateMembers(gmc)
+		m.timeUpdated = time.Now()
+	}
+}
+
+func (m *membersAbstraction) updateMembers(gmc *discordgo.GuildMembersChunk) {
+	m.mtex.Lock()
+	for _, memb := range gmc.Members {
+		m.members[memb.User.ID] = memb
+	}
+	m.mtex.Unlock()
+}
+
+func (m *membersAbstraction) getRoles(userID string) []string {
+	m.mtex.Lock()
+	user, found := m.members[userID]
+	m.mtex.Unlock()
+	if !found {
+		return []string{}
+	}
+	return user.Roles
 }
 
 //todo: Currently it re-runs the initialization routine every time someone enters or leaves a channel. It should be more exact in what happens.
@@ -145,15 +202,15 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session) {
 	// add the users struct to the server for lookups once it comes from the members request above
 	// todo: abstract the following routine to it's own function
 	logerooni.Debug("waiting for members chan\n")
-	memberstore := <-server.MembersChan
+	server.Members.WaitForSync()
 	logerooni.Debug("got members chan\n")
 	for _, wc := range server.focusRooms {
-		server.AssignRole(dg, wc, memberstore)
+		server.AssignRole(dg, wc)
 	}
 
 }
 
-func (server *Guild) AssignRole(dg *discordgo.Session, wc *models.FocusRoom, memberstore *discordgo.GuildMembersChunk) {
+func (server *Guild) AssignRole(dg *discordgo.Session, wc *models.FocusRoom) {
 	logerooni.Debugf("AssignRole called for server %s, focusroom #%d usercount %d", server.Config.ID, wc.Number, len(wc.Users))
 	if wc.Role == nil {
 		wc.Role = server.CreateRole(dg, wc.Number)
@@ -167,7 +224,7 @@ func (server *Guild) AssignRole(dg *discordgo.Session, wc *models.FocusRoom, mem
 	userfound := false
 searchForUserWithRole:
 	for _, user := range wc.Users {
-		for _, role := range lookupUserRoles(memberstore, user) {
+		for _, role := range server.Members.getRoles(user) {
 			if role == wc.Role.ID {
 				userfound = true
 				break searchForUserWithRole
@@ -213,9 +270,9 @@ func (server *Guild) CreateNextChannel(dg *discordgo.Session) {
 	//todo: set up something to listen for the creation to be confirmed and act on it instead of sleeping
 	logerooni.Debugf("Creating Channel number %d for server %s", newNumber, server.Config.ID)
 	channel, err := dg.GuildChannelCreateComplex(server.Config.ID, discordgo.GuildChannelCreateData{
-		Name:            server.Config.ChannelPrefix + strconv.Itoa(newNumber),
-		Type:            discordgo.ChannelTypeGuildVoice,
-		Topic:           "Focus",
+		Name:     server.Config.ChannelPrefix + strconv.Itoa(newNumber),
+		Type:     discordgo.ChannelTypeGuildVoice,
+		Topic:    "Focus",
 		ParentID: server.GetRoomZeroCategory(),
 	})
 	if err != nil {
@@ -311,7 +368,7 @@ func (server *Guild) RefreshChannelState(dg *discordgo.Session, guild *discordgo
 	}
 }
 
-func (server Guild) SetOffServerProcessing(dg *discordgo.Session) {
+func (server *Guild) SetOffServerProcessing(dg *discordgo.Session) {
 	logerooni.Debugf("Starting processing for guild %s", server.Config.ID)
 	server.getServerStateInTheRightPlace(dg)
 	for {
