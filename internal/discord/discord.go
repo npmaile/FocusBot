@@ -124,7 +124,7 @@ func GuildMembersChunkFunc(mg *mtexGuilds) func(_ *discordgo.Session, gm *discor
 			logerooni.Errorf("unable to route GuildMembersChunk to guild process %s, guildID not in process store", gm.GuildID)
 			return
 		}
-		server.MembersChan <- gm
+		server.Members.MembersChan <- gm
 		logerooni.Debugf("Routed GuildMembersChunk to guild process %s", gm.GuildID)
 	}
 }

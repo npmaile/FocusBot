@@ -23,7 +23,7 @@ func NewFromConfig(c *models.GuildConfig) *Guild {
 		Members: membersAbstraction{
 			timeUpdated: time.Time{},
 			members:     map[string]*discordgo.Member{},
-			membersChan: make(chan *discordgo.GuildMembersChunk, 50),
+			MembersChan: make(chan *discordgo.GuildMembersChunk, 50),
 			mtex:        sync.Mutex{},
 		},
 		Initialized: false,
@@ -42,7 +42,7 @@ type Guild struct {
 type membersAbstraction struct {
 	timeUpdated time.Time
 	members     map[string]*discordgo.Member
-	membersChan chan *discordgo.GuildMembersChunk
+	MembersChan chan *discordgo.GuildMembersChunk
 	mtex        sync.Mutex
 }
 
@@ -62,7 +62,7 @@ func (m *membersAbstraction) stale() bool {
 
 func (m *membersAbstraction) startReceivingMembersUpdates(){
 	for {
-		gmc := <- m.membersChan
+		gmc := <- m.MembersChan
 		m.updateMembers(gmc)
 		m.timeUpdated = time.Now()
 	}
