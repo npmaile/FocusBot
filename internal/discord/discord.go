@@ -12,6 +12,10 @@ import (
 	"github.com/npmaile/focusbot/pkg/logerooni"
 )
 
+func init(){
+	discordgo.Logger = logerooni.DiscordLogger
+}
+
 func InitializeDG(servers []*guild.Guild, token string, db db.DataStore) (*models.GlobalConfig, error) {
 	logerooni.Debug("InitializeDG called")
 	dg, err := discordgo.New("Bot " + token)
@@ -46,7 +50,6 @@ func InitializeDG(servers []*guild.Guild, token string, db db.DataStore) (*model
 	dg.AddHandler(GuildCreateHandlerFunc(&mg, db))
 	dg.AddHandler(GuildMembersChunkFunc(&mg))
 	dg.AddHandler(GuildVoiceStateUpdateHandlerFunc(&mg))
-	discordgo.Logger = logerooni.DiscordLogger
 
 	logerooni.Debug("Opening discordgo websocket connection")
 	err = dg.Open()
