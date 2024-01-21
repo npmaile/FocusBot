@@ -53,8 +53,8 @@ func (m *membersAbstraction) WaitForSync() {
 }
 
 func (m *membersAbstraction) stale() bool {
-	// this is deceptively difficult to reason about.
 	m.mtex.Lock()
+	// this is deceptively difficult to reason about.
 	ret := m.timeUpdated.Compare(time.Now().Add(-staleMembersChunkTime)) > 0
 	m.mtex.Unlock()
 	return ret
