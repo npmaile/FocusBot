@@ -64,7 +64,7 @@ func main() {
 	}
 
 	// todo: the entire management interface
-	logerooni.Info("Listening on :8080")
+	logerooni.Info("Listening on :80")
 	http.HandleFunc("/link", webServer.ServeLinkPageFunc(clientID))
 	if certfile != "" && keyfile != "" {
 		err = http.ListenAndServeTLS(":443", certfile, keyfile, nil)
