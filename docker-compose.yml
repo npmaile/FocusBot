@@ -1,6 +1,8 @@
 services:
   focusBot:
     restart: always
+    ports:
+      - 8080:80
     environment:
       - CONFIG_PATH=/app/stuff
       - LOG_LEVEL=debug
