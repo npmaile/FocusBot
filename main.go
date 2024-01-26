@@ -27,7 +27,6 @@ func main() {
 	viper.AddConfigPath(configPath)
 	err := viper.ReadInConfig()
 	if err != nil {
-		//todo: better logging library and configuraion to handle log levels
 		logerooni.Fatalf("unable to read configuration: %s", err.Error())
 	}
 
@@ -58,7 +57,6 @@ func main() {
 	}
 
 	for _, s := range servers {
-		//todo: set this off for new servers coming into the system
 		//todo: set off server processing for any servers whose handlers crash
 		go s.SetOffServerProcessing(dg.DG)
 	}
