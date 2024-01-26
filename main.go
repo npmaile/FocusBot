@@ -33,6 +33,8 @@ func main() {
 	logerooni.Info("starting up")
 	clientID := viper.GetString("bot.app_id")
 	token := viper.GetString("bot.api_token")
+	certfile := viper.GetString("http.certfile")
+	keyfile := viper.GetString("http.keyfile")
 
 	//todo: add other database backend options to configuration
 	db, err := db.NewSqliteStore(viper.GetString("store.path"))
@@ -64,5 +66,12 @@ func main() {
 	// todo: the entire management interface
 	logerooni.Info("Listening on :8080")
 	http.HandleFunc("/link", webServer.ServeLinkPageFunc(clientID))
-	http.ListenAndServe(":8080", nil)
+	if certfile != "" && keyfile != "" {
+		err = http.ListenAndServeTLS(":443", certfile, keyfile, nil)
+	} else {
+		err = http.ListenAndServe(":80", nil)
+	}
+	if err != nil {
+		logerooni.Fatalf("Web server unexpectedly quit: %s", err.Error())
+	}
 }
