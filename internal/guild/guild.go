@@ -2,7 +2,9 @@ package guild
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,8 +34,8 @@ func NewFromConfig(c *models.GuildConfig) *Guild {
 }
 
 type Guild struct {
-	GuildChan        chan *discordgo.GuildCreate
-	VoiceStateUpdate chan *discordgo.VoiceStateUpdate
+	GuildChan        chan *discordgo.GuildCreate `json:"-"`
+	VoiceStateUpdate chan *discordgo.VoiceStateUpdate `json:"-"`
 	focusRooms       map[string]*models.FocusRoom
 	Config           *models.GuildConfig
 	Members          membersAbstraction
@@ -43,7 +45,7 @@ type Guild struct {
 type membersAbstraction struct {
 	timeUpdated time.Time
 	members     map[string]*discordgo.Member
-	MembersChan chan *discordgo.GuildMembersChunk
+	MembersChan chan *discordgo.GuildMembersChunk `json:"-"`
 	mtex        sync.Mutex
 }
 
@@ -95,6 +97,7 @@ func (m *membersAbstraction) getRoles(userID string) []string {
 //todo: Currently it re-runs the initialization routine every time someone enters or leaves a channel. It should be more exact in what happens.
 
 func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session, ctx context.Context) {
+	json.NewEncoder(os.Stdout).Encode(server)
 	logerooni.Debug("inside of getServerStateInTheRightPlace")
 	err := dg.RequestGuildMembers(server.Config.ID, "", 0, "", true)
 	if err != nil {
@@ -164,12 +167,12 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session, ctx co
 	for _, wc := range server.focusRooms {
 		if wc.MarkDelete {
 			logerooni.Debugf("deleting channel %s in server %s", wc.ChannelStruct.ID, server.Config.ID)
-			_, err = dg.ChannelDelete(wc.ChannelStruct.ID,discordgo.WithContext(ctx))
+			_, err = dg.ChannelDelete(wc.ChannelStruct.ID, discordgo.WithContext(ctx))
 			if err != nil {
 				logerooni.Errorf("unable to delete channel with id %s: %s\n", wc.ChannelStruct.ID, err.Error())
 			}
 			if wc.Role != nil {
-				err = dg.GuildRoleDelete(guild.ID, wc.Role.ID,discordgo.WithContext(ctx))
+				err = dg.GuildRoleDelete(guild.ID, wc.Role.ID, discordgo.WithContext(ctx))
 				if err != nil {
 					logerooni.Errorf("unable to delete role with id %s: %s\n", wc.ChannelStruct.ID, err.Error())
 				}
@@ -178,7 +181,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session, ctx co
 		} else if wc.MarkRoleDelete {
 			logerooni.Debugf("deleting role %s in server %s", wc.Role.ID, server.Config.ID)
 			if wc.Role != nil {
-				err = dg.GuildRoleDelete(guild.ID, wc.Role.ID,discordgo.WithContext(ctx))
+				err = dg.GuildRoleDelete(guild.ID, wc.Role.ID, discordgo.WithContext(ctx))
 				if err != nil {
 					logerooni.Errorf("unable to delete role with id %s: %s\n", wc.ChannelStruct.ID, err.Error())
 				}
