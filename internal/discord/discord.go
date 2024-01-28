@@ -22,6 +22,7 @@ func InitializeDG(servers []*guild.Guild, token string, db db.DataStore) (*model
 	if err != nil {
 		logerooni.Errorf("unable to initialize a new discordgo client: " + err.Error())
 	}
+	dg.Debug = true
 
 	dg.SyncEvents = false
 	dg.LogLevel = discordgo.LogInformational
