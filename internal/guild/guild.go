@@ -2,9 +2,7 @@ package guild
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -97,7 +95,6 @@ func (m *membersAbstraction) getRoles(userID string) []string {
 //todo: Currently it re-runs the initialization routine every time someone enters or leaves a channel. It should be more exact in what happens.
 
 func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session, ctx context.Context) {
-	json.NewEncoder(os.Stdout).Encode(server)
 	logerooni.Debug("inside of getServerStateInTheRightPlace")
 	err := dg.RequestGuildMembers(server.Config.ID, "", 0, "", true)
 	if err != nil {
