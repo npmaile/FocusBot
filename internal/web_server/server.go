@@ -5,6 +5,7 @@ import (
 	"embed"
 	"html/template"
 	"io/fs"
+	"mime"
 	"net/http"
 	"strings"
 
@@ -23,6 +24,7 @@ var boilerplateTemplate *template.Template
 var static embed.FS
 
 func init() {
+	// pre-compile web templates
 	var err error
 	boilerplateTemplate, err = template.New("boilerplate").Parse(boilerplate)
 	if err != nil {
@@ -33,6 +35,11 @@ func init() {
 	if err != nil {
 		logerooni.Errorf("unable to parse indexTemplate: %s", err.Error())
 	}
+
+	// add some mime types
+	mime.AddExtensionType(".js", "application/javascript")
+	mime.AddExtensionType(".mp4", "video/mp4")
+
 }
 
 func SetupWebServer(clientID string) {
