@@ -3,11 +3,12 @@ package server
 import (
 	"bytes"
 	"embed"
-	"fmt"
 	"html/template"
 	"io/fs"
 	"net/http"
 	"strings"
+
+	"github.com/npmaile/focusbot/pkg/logerooni"
 )
 
 //go:embed templates/content.template.html
@@ -25,12 +26,12 @@ func init() {
 	var err error
 	boilerplateTemplate, err = template.New("boilerplate").Parse(boilerplate)
 	if err != nil {
-		fmt.Println(err.Error())
+		logerooni.Errorf("unable to parse indexTemplate: %s", err.Error())
 	}
 
 	indexTemplate, err = template.New("index").Parse(indexContent)
 	if err != nil {
-		fmt.Println(err.Error())
+		logerooni.Errorf("unable to parse indexTemplate: %s", err.Error())
 	}
 }
 
@@ -46,7 +47,10 @@ func SetupWebServer(clientID string) {
 func index(clientID string) func(w http.ResponseWriter, _ *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		buf := bytes.NewBuffer([]byte{})
-		indexTemplate.Execute(buf, clientID)
+		err := indexTemplate.Execute(buf, template.HTML(clientID))
+		if err != nil{
+			logerooni.Errorf("unable to execute index template %s", err.Error())
+		}
 		boilerplateTemplate.Execute(w, template.HTML(buf.String()))
 	}
 }

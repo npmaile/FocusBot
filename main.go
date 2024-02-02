@@ -7,10 +7,10 @@ import (
 	"github.com/npmaile/focusbot/internal/db"
 	"github.com/npmaile/focusbot/internal/discord"
 	"github.com/npmaile/focusbot/internal/guild"
-	webServer "github.com/npmaile/focusbot/internal/web_server"
 	"github.com/npmaile/focusbot/pkg/logerooni"
 
 	"github.com/spf13/viper"
+	webServer "github.com/npmaile/focusbot/internal/web_server"
 )
 
 const version = "1"
