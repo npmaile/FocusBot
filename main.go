@@ -63,13 +63,12 @@ func main() {
 		go s.SetOffServerProcessing(dg.DG)
 	}
 
-	// todo: the entire management interface
-	logerooni.Info("Listening on :80")
-	
-	webServer.SetupWebServer(clientID)	
+	webServer.SetupWebServer(clientID)
 	if certfile != "" && keyfile != "" {
+		logerooni.Info("Listening on :443")
 		err = http.ListenAndServeTLS(":443", certfile, keyfile, nil)
 	} else {
+		logerooni.Info("Listening on :80")
 		err = http.ListenAndServe(":80", nil)
 	}
 	if err != nil {
