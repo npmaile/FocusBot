@@ -20,7 +20,7 @@ var indexTemplate *template.Template
 var boilerplate string
 var boilerplateTemplate *template.Template
 
-//go:embed templates/static/*
+//go:embed static/*
 var static embed.FS
 
 func init() {
