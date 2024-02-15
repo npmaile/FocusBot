@@ -29,13 +29,11 @@ func main() {
 	if err != nil {
 		logerooni.Fatalf("unable to read configuration: %s", err.Error())
 	}
-
 	logerooni.Info("starting up")
 	clientID := viper.GetString("bot.app_id")
 	token := viper.GetString("bot.api_token")
 	certfile := viper.GetString("http.certfile")
 	keyfile := viper.GetString("http.keyfile")
-
 	//todo: add other database backend options to configuration
 	db, err := db.NewSqliteStore(viper.GetString("store.path"))
 	if err != nil {

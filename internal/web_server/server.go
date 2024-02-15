@@ -5,7 +5,7 @@ import (
 	"embed"
 	"html/template"
 	"io/fs"
-	"mime"
+//	"mime"
 	"net/http"
 	"strings"
 
@@ -37,8 +37,8 @@ func init() {
 	}
 
 	// add some mime types
-	mime.AddExtensionType(".js", "application/javascript")
-	mime.AddExtensionType(".mp4", "video/mp4")
+//	mime.AddExtensionType(".js", "application/javascript")
+//	mime.AddExtensionType(".mp4", "video/mp4")
 
 }
 
@@ -64,6 +64,9 @@ func index(clientID string) func(w http.ResponseWriter, _ *http.Request) {
 
 func killFileIndex(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/"{
+			http.Redirect(w,r,"/index.html",http.StatusFound)
+		}
 		if strings.HasSuffix(r.URL.Path, "/") {
 			http.NotFound(w, r)
 			return
