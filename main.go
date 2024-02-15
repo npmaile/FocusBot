@@ -32,6 +32,7 @@ func main() {
 	logerooni.Info("starting up")
 	clientID := viper.GetString("bot.app_id")
 	token := viper.GetString("bot.api_token")
+	oAuth2ClientSecret := viper.GetString("bot.Oauth2ClientSecret")
 	certfile := viper.GetString("http.certfile")
 	keyfile := viper.GetString("http.keyfile")
 	//todo: add other database backend options to configuration
@@ -61,7 +62,7 @@ func main() {
 		go s.SetOffServerProcessing(dg.DG)
 	}
 
-	webServer.SetupWebServer(clientID)
+	webServer.SetupWebServer(clientID,oAuth2ClientSecret)
 	if certfile != "" && keyfile != "" {
 		logerooni.Info("Listening on :443")
 		err = http.ListenAndServeTLS(":443", certfile, keyfile, nil)

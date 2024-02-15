@@ -5,7 +5,7 @@ import (
 	"embed"
 	"html/template"
 	"io/fs"
-//	"mime"
+	//	"mime"
 	"net/http"
 	"strings"
 
@@ -37,17 +37,18 @@ func init() {
 	}
 
 	// add some mime types
-//	mime.AddExtensionType(".js", "application/javascript")
-//	mime.AddExtensionType(".mp4", "video/mp4")
+	//	mime.AddExtensionType(".js", "application/javascript")
+	//	mime.AddExtensionType(".mp4", "video/mp4")
 
 }
 
-func SetupWebServer(clientID string) {
+func SetupWebServer(clientID string, oauth2clientSecret string) {
 	realStatic, err := fs.Sub(static, "static")
 	if err != nil {
 		panic(err.Error())
 	}
 	http.HandleFunc("/index.html", index(clientID))
+	http.Handle("/auth", setupAuth(clientID, oauth2clientSecret, "http://localhost/auth/Discord/callback", []string{}))
 	http.Handle("/", killFileIndex(http.FileServer(http.FS(realStatic))))
 }
 
@@ -55,7 +56,7 @@ func index(clientID string) func(w http.ResponseWriter, _ *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		buf := bytes.NewBuffer([]byte{})
 		err := indexTemplate.Execute(buf, template.HTML(clientID))
-		if err != nil{
+		if err != nil {
 			logerooni.Errorf("unable to execute index template %s", err.Error())
 		}
 		boilerplateTemplate.Execute(w, template.HTML(buf.String()))
@@ -64,8 +65,8 @@ func index(clientID string) func(w http.ResponseWriter, _ *http.Request) {
 
 func killFileIndex(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/"{
-			http.Redirect(w,r,"/index.html",http.StatusFound)
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/index.html", http.StatusFound)
 		}
 		if strings.HasSuffix(r.URL.Path, "/") {
 			http.NotFound(w, r)
