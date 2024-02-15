@@ -32,7 +32,7 @@ func NewFromConfig(c *models.GuildConfig) *Guild {
 }
 
 type Guild struct {
-	GuildChan        chan *discordgo.GuildCreate `json:"-"`
+	GuildChan        chan *discordgo.GuildCreate      `json:"-"`
 	VoiceStateUpdate chan *discordgo.VoiceStateUpdate `json:"-"`
 	focusRooms       map[string]*models.FocusRoom
 	Config           *models.GuildConfig
@@ -154,6 +154,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session, ctx co
 		}
 		wc.MarkDelete = true
 	}
+
 	if lowest != nil {
 		lowest.MarkDelete = false
 		lowest.MarkRoleDelete = true
@@ -381,6 +382,11 @@ func (server *Guild) SetOffServerProcessing(dg *discordgo.Session) {
 	for {
 		vsu := <-server.VoiceStateUpdate
 		logerooni.Debugf("voice state update receieved for user %s %s", vsu.UserID, deltaVoiceStateStatusBullshit(vsu))
+		_, concernsUs := server.focusRooms[vsu.ChannelID]
+		if !concernsUs {
+			continue
+		}
+
 		done := make(chan struct{})
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		go func(done chan struct{}, ctx context.Context) {
