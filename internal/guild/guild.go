@@ -157,7 +157,7 @@ func (server *Guild) getServerStateInTheRightPlace(dg *discordgo.Session, ctx co
 
 	if lowest != nil {
 		lowest.MarkDelete = false
-		lowest.MarkRoleDelete = true
+		lowest.MarkRoleDelete = false
 	}
 
 	// delete all marked for deletion
