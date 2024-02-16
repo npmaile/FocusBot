@@ -1,18 +1,40 @@
-<h1>
-	FocusBot
-</h1>
-<p>
-	FocusBot is an open source discord bot providing a getaway from the main chat for people who just want to focus
-	on something. FocusBot has an invisible interface interacted with by simply joining a focus channel. See it in
-	action here:
-</p>
+<!DOCTYPE html>
+<html>
 
-<video width="320" height="240" controls>
-	<source src="video.mp4" type="video/mp4">
-	Your browser doesn't support video, but if it did, it would be pretty friggen sick right now dawg
-</video>
+<head>
+	<script type="text/javascript" src="htmx.js"></script>
 
-<h1>
-	<a href="https://discord.com/oauth2/authorize?client_id={{.}}&scope=bot&permissions=1">Add Focus Bot To Your Server
-	</a>
-</h1>
+</head>
+
+<body>
+	<a
+		href="https://discord.com/oauth2/authorize?response_type=code&client_id={{.ClientID}}&scope=identify%20guilds.join&redirect_uri={{.RedirectURL}}&prompt=consent">Log
+		in</a> to manage focus bot
+	<content>
+		<h1>
+			FocusBot
+		</h1>
+		<p>
+			FocusBot is an open source discord bot providing a getaway from the main chat for people who
+			just want to focus
+			on something. FocusBot has an invisible interface interacted with by simply joining a focus
+			channel. See it in
+			action here:
+		</p>
+
+		<video width="320" height="240" controls>
+			<source src="video.mp4" type="video/mp4">
+			Your browser doesn't support video, but if it did, it would be pretty friggen sick right now
+			dawg
+		</video>
+
+		<h1>
+			<a href="https://discord.com/oauth2/authorize?client_id={{.ClientID}}&scope=bot&permissions=1">Add Focus
+				Bot To Your
+				Server
+			</a>
+		</h1>
+	</content>
+
+</body>
+</html>

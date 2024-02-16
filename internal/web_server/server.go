@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"embed"
 	"html/template"
 	"io/fs"
@@ -16,30 +15,16 @@ import (
 var indexContent string
 var indexTemplate *template.Template
 
-//go:embed templates/boilerplate.template.html
-var boilerplate string
-var boilerplateTemplate *template.Template
-
 //go:embed static/*
 var static embed.FS
 
 func init() {
 	// pre-compile web templates
 	var err error
-	boilerplateTemplate, err = template.New("boilerplate").Parse(boilerplate)
-	if err != nil {
-		logerooni.Errorf("unable to parse indexTemplate: %s", err.Error())
-	}
-
 	indexTemplate, err = template.New("index").Parse(indexContent)
 	if err != nil {
 		logerooni.Errorf("unable to parse indexTemplate: %s", err.Error())
 	}
-
-	// add some mime types
-	//	mime.AddExtensionType(".js", "application/javascript")
-	//	mime.AddExtensionType(".mp4", "video/mp4")
-
 }
 
 func SetupWebServer(clientID string, oauth2clientSecret string) {
@@ -47,19 +32,25 @@ func SetupWebServer(clientID string, oauth2clientSecret string) {
 	if err != nil {
 		panic(err.Error())
 	}
-	http.HandleFunc("/index.html", index(clientID))
-	http.Handle("/auth", setupAuth(clientID, oauth2clientSecret, "http://localhost/auth/Discord/callback", []string{}))
+	var redirectURL = "http://localhost/auth/discord/callback"
+	http.HandleFunc("/index.html", index(clientID,redirectURL))
+	http.Handle("/auth/", setupAuth(clientID, oauth2clientSecret, redirectURL, []string{}))
 	http.Handle("/", killFileIndex(http.FileServer(http.FS(realStatic))))
 }
 
-func index(clientID string) func(w http.ResponseWriter, _ *http.Request) {
+func index(clientID string, RedirectURL string) func(w http.ResponseWriter, _ *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		buf := bytes.NewBuffer([]byte{})
-		err := indexTemplate.Execute(buf, template.HTML(clientID))
+		var indexPageStuff = struct{
+			ClientID string	
+			RedirectURL string
+		}{
+			ClientID: clientID,
+			RedirectURL: RedirectURL,
+		}
+		err := indexTemplate.Execute(w, &indexPageStuff)
 		if err != nil {
 			logerooni.Errorf("unable to execute index template %s", err.Error())
 		}
-		boilerplateTemplate.Execute(w, template.HTML(buf.String()))
 	}
 }
 
