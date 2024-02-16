@@ -25,3 +25,4 @@ main
 
 WageBot
 datastore.sqlite
+config.toml
