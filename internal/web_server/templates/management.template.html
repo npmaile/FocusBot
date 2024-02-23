@@ -1,0 +1,54 @@
+<html>
+
+<head>
+	<link rel="stylesheet" href="/simple.min.css">
+	<script type="text/javascript" src="htmx.js"></script>
+	<title>Manage FocusBot</title>
+
+</head>
+
+<body>
+	<header>
+		<div>
+			<p>
+				<a class="button" href="/auth/logout/{{.Provider}}">
+					logout
+				</a>
+				<img src="{{.AvatarURL}}">
+			</p>
+		</div>
+	</header>
+
+	<main>
+		<p class="notice">
+			<label for="server-select">Please select the server you wish to modify: </label>
+			<select name="serverID" id="sever-select">
+				<option value="SERVER_0_ID"> friendly server name 0 </option>
+				<option value="SERVER_1_ID"> friendly server name 1 </option>
+
+			</select>
+		<p>
+		<div id="server-options">
+		</div>
+
+	</main>
+
+	<footer>
+		<p>
+			FocusBot copywrite npmaile LC 2024
+		</p>
+	</footer>
+
+	<!--
+	<p>Name: {{.Name}} [{{.LastName}}, {{.FirstName}}]</p>
+	<p>Email: {{.Email}}</p>
+	<p>NickName: {{.NickName}}</p>
+	<p>Location: {{.Location}}</p>
+	<p>Description: {{.Description}}</p>
+	<p>AvatarURL: {{.AvatarURL}} <img src="{{.AvatarURL}}"></p>
+	<p>UserID: {{.UserID}}</p>
+	<p>ExpiresAt: {{.ExpiresAt}}</p>
+	-->
+</body>
+
+</html>

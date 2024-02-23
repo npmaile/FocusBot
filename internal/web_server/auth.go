@@ -2,8 +2,8 @@ package server
 
 import (
 	"crypto/rand"
+	_ "embed"
 	"fmt"
-	"html/template"
 	"net/http"
 
 	"github.com/gorilla/pat"
@@ -11,10 +11,11 @@ import (
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/discord"
+	"github.com/npmaile/focusbot/pkg/logerooni"
 )
 
 func init() {
-	var secret = make([]byte,32)
+	var secret = make([]byte, 32)
 	rand.Read(secret)
 	gothic.Store = sessions.NewCookieStore(secret)
 }
@@ -28,20 +29,31 @@ func setupAuth(key string, secret string, callbackURL string, scopes []string) *
 			fmt.Fprintln(w, err)
 			return
 		}
-		t, _ := template.New("something").Parse(loggedInTemplate)
-		t.Execute(w, user)
+		logerooni.Infof("user %s has logged in", user.UserID)
+		http.Redirect(w,r,"/management",http.StatusTemporaryRedirect)
 	})
 
-	p.Get("/auth/logout/Discord", func(w http.ResponseWriter, r *http.Request) {
+	p.Get("/auth/logout/{provider}", func(w http.ResponseWriter, r *http.Request) {
+		user, _ := gothic.CompleteUserAuth(w, r)
+		logerooni.Infof("user %s has logged out", user.UserID)
 		gothic.Logout(w, r)
 		w.Header().Set("Location", "/")
 		w.WriteHeader(http.StatusTemporaryRedirect)
+	})
+
+	p.Get("/auth/{provider}", func(w http.ResponseWriter, r *http.Request) {
+		// try to get the user without re-authenticating
+		if _, err := gothic.CompleteUserAuth(w, r); err == nil {
+			http.Redirect(w, r, "/index.html", http.StatusTemporaryRedirect)
+		} else {
+			gothic.BeginAuthHandler(w, r)
+		}
 	})
 	return p
 }
 
 const loggedInTemplate = `
-<p><a href="/logout/{{.Provider}}">logout</a></p>
+<p><a href="/auth/logout/{{.Provider}}">logout</a></p>
 <p>Name: {{.Name}} [{{.LastName}}, {{.FirstName}}]</p>
 <p>Email: {{.Email}}</p>
 <p>NickName: {{.NickName}}</p>
@@ -49,7 +61,5 @@ const loggedInTemplate = `
 <p>AvatarURL: {{.AvatarURL}} <img src="{{.AvatarURL}}"></p>
 <p>Description: {{.Description}}</p>
 <p>UserID: {{.UserID}}</p>
-<p>AccessToken: {{.AccessToken}}</p>
 <p>ExpiresAt: {{.ExpiresAt}}</p>
-<p>RefreshToken: {{.RefreshToken}}</p>
 `

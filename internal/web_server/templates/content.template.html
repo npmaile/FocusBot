@@ -3,12 +3,12 @@
 
 <head>
 	<script type="text/javascript" src="htmx.js"></script>
+	<link rel="stylesheet" href="/simple.min.css">
 
 </head>
 
 <body>
-	<a
-		href="https://discord.com/oauth2/authorize?response_type=code&client_id={{.ClientID}}&scope=identify%20guilds.join&redirect_uri={{.RedirectURL}}&prompt=consent">Log
+	<a href="/auth/discord">Log
 		in</a> to manage focus bot
 	<content>
 		<h1>
@@ -29,7 +29,8 @@
 		</video>
 
 		<h1>
-			<a href="https://discord.com/oauth2/authorize?client_id={{.ClientID}}&scope=bot&permissions=1">Add Focus
+			<a href="https://discord.com/oauth2/authorize?client_id={{.ClientID}}&scope=bot&permissions=1">Add
+				Focus
 				Bot To Your
 				Server
 			</a>
@@ -37,4 +38,5 @@
 	</content>
 
 </body>
+
 </html>
