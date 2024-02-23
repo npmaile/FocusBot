@@ -9,8 +9,8 @@ import (
 	"github.com/npmaile/focusbot/internal/guild"
 	"github.com/npmaile/focusbot/pkg/logerooni"
 
-	"github.com/spf13/viper"
 	webServer "github.com/npmaile/focusbot/internal/web_server"
+	"github.com/spf13/viper"
 )
 
 const version = "1"
@@ -62,7 +62,7 @@ func main() {
 		go s.SetOffServerProcessing(dg.DG)
 	}
 
-	webServer.SetupWebServer(clientID,oAuth2ClientSecret)
+	webServer.SetupWebServer(clientID, oAuth2ClientSecret, dg.DG, db)
 	if certfile != "" && keyfile != "" {
 		logerooni.Info("Listening on :443")
 		err = http.ListenAndServeTLS(":443", certfile, keyfile, nil)
