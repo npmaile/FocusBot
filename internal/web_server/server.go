@@ -55,7 +55,7 @@ func SetupWebServer(clientID string, oauth2clientSecret string, dg *discordgo.Se
 }
 
 // //////////////////////////////////
-// routes
+// Routes
 // //////////////////////////////////
 func index(clientID string, RedirectURL string) func(w http.ResponseWriter, _ *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
