@@ -3,11 +3,12 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/npmaile/focusbot/internal/models"
-	slog "github.com/npmaile/focusbot/pkg/logerooni"
+	"github.com/npmaile/focusbot/pkg/logerooni"
 )
 
 type sqliteStore struct {
@@ -16,7 +17,7 @@ type sqliteStore struct {
 
 // todo: use proper logging once it exists
 func NewSqliteStore(filePath string) (DataStore, error) {
-	slog.Debug("NewSqliteStore called")
+	logerooni.Debug("NewSqliteStore called")
 	// add the filepath to store the databe to the config toml
 	db, err := sql.Open("sqlite3", filePath)
 	if err != nil {
@@ -32,8 +33,37 @@ func NewSqliteStore(filePath string) (DataStore, error) {
 	}, nil
 }
 
+func (s *sqliteStore) GetStupidDBIntersect(ids []string) ([]*models.GuildConfig, error) {
+	logerooni.Debug("GetStupidDBIntersect called")
+	dynamicPart := strings.Builder{}
+	interslice := []interface{}{}
+	for _, id := range ids {
+		dynamicPart.WriteString("?,")
+		interslice = append(interslice, id)
+	}
+	serversResponse, err := s.storage.Query(fmt.Sprintf(`SELECT
+	id, channelPrefix, RolePrefix
+	FROM
+	servers
+	WHERE
+	id in (%s)
+	;`, dynamicPart.String()[0:len(dynamicPart.String())-1]), interslice...)
+	if err != nil {
+		logerooni.Errorf("didn't work: %s", err.Error())
+		panic("didn't work")
+	}
+
+	var ret []*models.GuildConfig
+	for serversResponse.Next() {
+		next := models.GuildConfig{}
+		serversResponse.Scan(&next.ID, &next.ChannelPrefix, &next.RolePrefix)
+		ret = append(ret, &next)
+	}
+	return ret, nil
+}
+
 func (s *sqliteStore) GetServerConfiguration(guildID string) (models.GuildConfig, error) {
-	slog.Debug("GetServerConfiguration called")
+	logerooni.Debug("GetServerConfiguration called")
 	row := s.storage.QueryRow(`SELECT
 	id, channelPrefix, rolePrefix
 	FROM
@@ -53,7 +83,7 @@ func (s *sqliteStore) GetServerConfiguration(guildID string) (models.GuildConfig
 }
 
 func (s *sqliteStore) GetAllServerConfigs() ([]*models.GuildConfig, error) {
-	slog.Debug("GetAllServerConfigs called")
+	logerooni.Debug("GetAllServerConfigs called")
 	rows, err := s.storage.Query(`SELECT
 	id, channelPrefix, rolePrefix
 	FROM
@@ -71,7 +101,7 @@ func (s *sqliteStore) GetAllServerConfigs() ([]*models.GuildConfig, error) {
 		ret = append(ret, &s)
 	}
 	for _, guild := range ret {
-		slog.Debug(fmt.Sprintf("loaded config for guild: %s", guild.ID))
+		logerooni.Debug(fmt.Sprintf("loaded config for guild: %s", guild.ID))
 	}
 	return ret, nil
 
@@ -83,7 +113,7 @@ func (s *sqliteStore) AddServer(cfg models.GuildConfig) error {
 		values (?,?,?)
 	`, cfg.ID, cfg.ChannelPrefix, cfg.RolePrefix)
 	if err != nil {
-		slog.Errorf("unable to insert new entry to sqlite data store: %s", err.Error())
+		logerooni.Errorf("unable to insert new entry to sqlite data store: %s", err.Error())
 		return err
 	}
 	return nil
@@ -98,7 +128,7 @@ func (s *sqliteStore) UpdateServer(cfg models.GuildConfig) error {
 		WHERE
 		id =?`, cfg.ChannelPrefix, cfg.RolePrefix)
 	if err != nil {
-		slog.Errorf("unable to update entry to sqlite data store: %s", err.Error())
+		logerooni.Errorf("unable to update entry to sqlite data store: %s", err.Error())
 		return err
 	}
 	return nil

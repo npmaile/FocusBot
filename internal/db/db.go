@@ -5,10 +5,11 @@ import (
 )
 
 type DataStore interface {
-	GetServerConfiguration(guildID string) (models.GuildConfig, error)
+	GetServerConfiguration(string) (models.GuildConfig, error)
 	GetAllServerConfigs() ([]*models.GuildConfig, error)
 	AddServer(models.GuildConfig) error
 	UpdateServer(models.GuildConfig) error
+	GetStupidDBIntersect([]string) ([]*models.GuildConfig, error)
 	// todo: add server config updates to insert into database from management interface
 }
 

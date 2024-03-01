@@ -62,7 +62,7 @@ func main() {
 		go s.SetOffServerProcessing(dg.DG)
 	}
 
-	webServer.SetupWebServer(clientID, oAuth2ClientSecret, dg.DG, db)
+	webServer.SetupWebServer(clientID, oAuth2ClientSecret, db)
 	if certfile != "" && keyfile != "" {
 		logerooni.Info("Listening on :443")
 		err = http.ListenAndServeTLS(":443", certfile, keyfile, nil)

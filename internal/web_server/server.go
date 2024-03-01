@@ -1,18 +1,21 @@
 package server
 
 import (
+	"context"
 	"embed"
+	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 
 	//	"mime"
 	"net/http"
 	"strings"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/markbates/goth/gothic"
+
+	//"github.com/npmaile/focusbot/internal/models"
 	"github.com/npmaile/focusbot/internal/db"
-	"github.com/npmaile/focusbot/internal/models"
 	"github.com/npmaile/focusbot/pkg/logerooni"
 )
 
@@ -41,17 +44,47 @@ func init() {
 
 }
 
-func SetupWebServer(clientID string, oauth2clientSecret string, dg *discordgo.Session, db db.DataStore) {
+func SetupWebServer(clientID string, oauth2clientSecret string, dbInstance db.DataStore) {
 	realStatic, err := fs.Sub(static, "static")
 	if err != nil {
 		panic(err.Error())
 	}
 	var redirectURL = "http://localhost/auth/discord/callback"
 	http.HandleFunc("/index.html", index(clientID, redirectURL))
-	http.Handle("/auth/", setupAuth(clientID, oauth2clientSecret, redirectURL, []string{}))
+	http.Handle("/auth/", setupAuth(clientID, oauth2clientSecret, redirectURL, []string{"guilds", "identify"}, dbInstance))
 	http.HandleFunc("/management/", managementPage)
-	http.HandleFunc("/serverOptions/", serverOptionsFunc(dg, db))
+	//http.HandleFunc("/serverOptions/", serverOptionsFunc(dg, db))
+	http.HandleFunc("/testGetServers/", testGetServers)
 	http.Handle("/", killFileIndex(http.FileServer(http.FS(realStatic))))
+}
+
+func testGetServers(w http.ResponseWriter, r *http.Request) {
+	r = r.WithContext(context.WithValue(r.Context(), "provider", "discord"))
+	user, err := gothic.CompleteUserAuth(w, r)
+	if err != nil {
+		panic(err.Error())
+	}
+	fmt.Println("1")
+	guildInfoPath := "/users/@me/guilds"
+	discordAPIBase := "https://discord.com/api"
+	req, err := http.NewRequest(http.MethodGet, discordAPIBase+guildInfoPath, nil)
+	if err != nil {
+		panic(err.Error())
+	}
+	fmt.Println("2")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Add("authorization", "bearer "+user.AccessToken)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err.Error())
+	}
+	fmt.Println("3")
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		panic(err.Error())
+	}
+	fmt.Println("4")
+	fmt.Println(string(b))
 }
 
 // //////////////////////////////////
@@ -74,9 +107,10 @@ func index(clientID string, RedirectURL string) func(w http.ResponseWriter, _ *h
 }
 
 func managementPage(w http.ResponseWriter, r *http.Request) {
+	//r = r.WithContext(context.WithValue(r.Context(), "provider", "discord"))
 	user, err := gothic.CompleteUserAuth(w, r)
 	if err != nil {
-		//todo something
+		fmt.Println(err.Error())
 		return
 	}
 	err = managementTemplate.Execute(w, user)
@@ -85,8 +119,9 @@ func managementPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+/*
 func serversUserCanScrewWith(dg *discordgo.Session, db db.DataStore, UserID string) []*models.GuildConfig {
-	db.GetServerConfiguration	
+	db.GetServerConfiguration
 
 }
 
@@ -105,6 +140,7 @@ func serverOptionsFunc(dg *discordgo.Session, db db.DataStore) func(w http.Respo
 
 	}
 }
+*/
 
 const serverOptions = `
 	
