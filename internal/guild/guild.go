@@ -279,7 +279,6 @@ func (server *Guild) CreateNextChannel(dg *discordgo.Session, ctx context.Contex
 	channel, err := dg.GuildChannelCreateComplex(server.Config.ID, discordgo.GuildChannelCreateData{
 		Name:     server.Config.ChannelPrefix + strconv.Itoa(newNumber),
 		Type:     discordgo.ChannelTypeGuildVoice,
-		Topic:    "Focus",
 		ParentID: server.GetRoomZeroCategory(),
 	}, discordgo.WithContext(ctx))
 	if err != nil {
