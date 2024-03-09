@@ -13,9 +13,9 @@ import (
 	"github.com/gorilla/pat"
 	"github.com/gorilla/sessions"
 	"github.com/markbates/goth"
-	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/discord"
 	"github.com/npmaile/focusbot/internal/db"
+	"github.com/npmaile/focusbot/internal/gothic"
 	"github.com/npmaile/focusbot/internal/models"
 	"github.com/npmaile/focusbot/pkg/logerooni"
 )
@@ -36,21 +36,18 @@ func setupAuth(key string, secret string, callbackURL string, scopes []string, d
 			return
 		}
 		//here
-		fmt.Println("1")
 		guildInfoPath := "/users/@me/guilds"
 		discordAPIBase := "https://discord.com/api"
 		req, err := http.NewRequest(http.MethodGet, discordAPIBase+guildInfoPath, nil)
 		if err != nil {
 			panic(err.Error())
 		}
-		fmt.Println("2")
 		req.Header.Set("Accept", "application/json")
 		req.Header.Add("Authorization", "Bearer "+user.AccessToken)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			panic(err.Error())
 		}
-		fmt.Println("3")
 		b, err := io.ReadAll(resp.Body)
 		if err != nil {
 			panic(err.Error())
@@ -61,8 +58,6 @@ func setupAuth(key string, secret string, callbackURL string, scopes []string, d
 		if err != nil {
 			panic(err.Error())
 		}
-
-		//		fmt.Printf("%+v", servers)
 
 		var ids []string
 		for _, serv := range servers {
@@ -90,7 +85,9 @@ func setupAuth(key string, secret string, callbackURL string, scopes []string, d
 			}
 		}
 		json.NewEncoder(w).Encode(ret)
-		//here
+		// shove this shit into a token
+
+		// redirect
 
 	})
 

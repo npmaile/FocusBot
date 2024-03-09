@@ -64,26 +64,23 @@ func testGetServers(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err.Error())
 	}
-	fmt.Println("1")
+	
 	guildInfoPath := "/users/@me/guilds"
 	discordAPIBase := "https://discord.com/api"
 	req, err := http.NewRequest(http.MethodGet, discordAPIBase+guildInfoPath, nil)
 	if err != nil {
 		panic(err.Error())
 	}
-	fmt.Println("2")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Add("authorization", "bearer "+user.AccessToken)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		panic(err.Error())
 	}
-	fmt.Println("3")
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		panic(err.Error())
 	}
-	fmt.Println("4")
 	fmt.Println(string(b))
 }
 
